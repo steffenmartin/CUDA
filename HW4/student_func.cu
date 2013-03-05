@@ -44,386 +44,56 @@
  */
 
 
-#define USE_REFERENCE_CALCULATION
-
-#if defined(USE_REFERENCE_CALCULATION)
-
-#define HISTOGRAM_ON_GPU
-#define SCAN_ON_GPU
-// #define GATHER_ON_GPU
-
-#endif
-
-#define BLOCK_SIZE_MAX_X 32
-#define BLOCK_SIZE_MAX_Y 32
-
-__global__
-    void simple_histo_binary(
-        unsigned int *d_Bins,
-        const unsigned int *d_In,
-        const unsigned int mask,
-        const unsigned int index,
-        const size_t numElems)
-{    
-    int myId =
-        blockIdx.y * blockDim.y * gridDim.x +
-        blockIdx.x * blockDim.x * blockDim.y +
-        threadIdx.y * blockDim.x +
-        threadIdx.x;
-        
-
-    if (myId < numElems)
-    {
-        unsigned int myItem = d_In[myId];
-
-        int myBin = (myItem & mask) >> index;
-
-        atomicAdd(&(d_Bins[myBin]), 1);
-    }
-}
-
-__global__
-	void scan_naive_exclusive(unsigned int *d_In,
-							  unsigned int *d_Out,
-							  const size_t numElems)
-{
-	int myId =
-        blockIdx.y * blockDim.y * gridDim.x +
-        blockIdx.x * blockDim.x * blockDim.y +
-        threadIdx.y * blockDim.x +
-        threadIdx.x;
-
-    if (myId < numElems)
-    {
-		for (int i = 0; i < myId; i++)
-		{
-			d_Out[myId] +=
-				d_In[i];
-		}
-	}
-}
-
-__global__
-    void gather(
-        unsigned int *d_InVal,
-        unsigned int *d_InPos,
-        unsigned int *d_OutVal,
-        unsigned int *d_OutPos,
-        unsigned int *d_Bins,
-        const unsigned int mask,
-        const unsigned int index,
-        const size_t numElems)
-{
-    int myId =
-        blockIdx.y * blockDim.y * gridDim.x +
-        blockIdx.x * blockDim.x * blockDim.y +
-        threadIdx.y * blockDim.x +
-        threadIdx.x;
-
-    if (myId < numElems)
-    {
-        unsigned int myItem = d_InVal[myId];
-
-        int myBin = (myItem & mask) >> index;
-        
-        d_OutVal[d_Bins[myBin]] = d_InVal[myId];
-        d_OutPos[d_Bins[myBin]]  = d_InPos[myId];
-
-        atomicAdd(&(d_Bins[myBin]), 1);
-    }
-}
-
 void your_sort(unsigned int* const d_inputVals,
                unsigned int* const d_inputPos,
                unsigned int* const d_outputVals,
                unsigned int* const d_outputPos,
                const size_t numElems)
 {
-    
-#if defined(USE_REFERENCE_CALCULATION)
+  /****************************************************************************
+  * You can use the code below to help with debugging, but make sure to       *
+  * comment it out again before submitting your assignment for grading,       *
+  * otherwise this code will take too much time and make it seem like your    *
+  * GPU implementation isn't fast enough.                                     *
+  *                                                                           *
+  * This code MUST RUN BEFORE YOUR CODE in case you accidentally change       *
+  * the input values when implementing your radix sort.                       *
+  *                                                                           *
+  * This code performs the reference radix sort on the host and compares your *
+  * sorted values to the reference.                                           *
+  *                                                                           *
+  * Thrust containers are used for copying memory from the GPU                *
+  * ************************************************************************* */
+  
+  /* thrust::host_vector<unsigned int> h_inputVals(thrust::device_ptr<unsigned int>(d_inputVals),
+                                                thrust::device_ptr<unsigned int>(d_inputVals) + numElems);
+  thrust::host_vector<unsigned int> h_inputPos(thrust::device_ptr<unsigned int>(d_inputPos),
+                                               thrust::device_ptr<unsigned int>(d_inputPos) + numElems);
 
-    unsigned int *h_inputVals =
-		new unsigned int[sizeof(unsigned int) * numElems];
-    
-    unsigned int *h_inputPos =
-		new unsigned int[sizeof(unsigned int) * numElems];
-    
-    unsigned int *h_outputVals =
-		new unsigned int[sizeof(unsigned int) * numElems];
-    
-    unsigned int *h_outputPos =
-		new unsigned int[sizeof(unsigned int) * numElems];
-    
-    checkCudaErrors(
-		cudaMemcpy(
-			h_inputVals,
-			d_inputVals,
-            sizeof(unsigned int) * numElems,
-			cudaMemcpyDeviceToHost));
-    
-    checkCudaErrors(
-		cudaMemcpy(
-			h_inputPos,
-			d_inputPos,
-            sizeof(unsigned int) * numElems,
-			cudaMemcpyDeviceToHost));
-    
-    reference_calculation(
-        h_inputVals,
-        h_inputPos,
-        h_outputVals,
-        h_outputPos,
-        numElems);
+  thrust::host_vector<unsigned int> h_outputVals(numElems);
+  thrust::host_vector<unsigned int> h_outputPos(numElems);
 
-  const int numBits = 16;
-  const int numBins = 1 << numBits;
-    
-  unsigned int *binHistogram = new unsigned int[numBins];
-    
-#if defined(HISTOGRAM_ON_GPU)
-    
-    unsigned int *d_binHisto;
-    
-    checkCudaErrors(
-        cudaMalloc(
-            &d_binHisto,
-            sizeof(unsigned int) *  numBins));
+  reference_calculation(&h_inputVals[0], &h_inputPos[0],
+                        &h_outputVals[0], &h_outputPos[0],
+                        numElems);
+  */
+   
 
-    // Block size (i.e., number of threads per block)
-	dim3 blockSizeHistogram(
-        BLOCK_SIZE_MAX_X,
-        BLOCK_SIZE_MAX_Y,
-        1);
+  //TODO
+  //PUT YOUR SORT HERE
 
-    int gridSizeHistogramX =
-        (ceil(sqrt((double)numElems)) - 1) / BLOCK_SIZE_MAX_X + 1;
+  /* *********************************************************************** *
+   * Uncomment the code below to do the correctness checking between your    *
+   * result and the reference.                                               *
+   **************************************************************************/
 
-    int gridSizeHistogramY =
-        (ceil(sqrt((double)numElems)) - 1) / BLOCK_SIZE_MAX_Y + 1;
-    
-    dim3 gridSizeHistogram(
-        gridSizeHistogramX,
-        gridSizeHistogramY,
-        1);
-    
-#endif
+  /*
+  thrust::host_vector<unsigned int> h_yourOutputVals(thrust::device_ptr<unsigned int>(d_outputVals),
+                                                     thrust::device_ptr<unsigned int>(d_outputVals) + numElems);
+  thrust::host_vector<unsigned int> h_yourOutputPos(thrust::device_ptr<unsigned int>(d_outputPos),
+                                                    thrust::device_ptr<unsigned int>(d_outputPos) + numElems);
 
-#if defined(SCAN_ON_GPU)
-    
-    unsigned int *d_Scan;
-    
-    checkCudaErrors(
-        cudaMalloc(
-            &d_Scan,
-            sizeof(unsigned int) *  numBins));
-
-    // Block size (i.e., number of threads per block)
-	dim3 blockSizeScan(
-        BLOCK_SIZE_MAX_X,
-        BLOCK_SIZE_MAX_Y,
-        1);
-
-    int gridSizeScanX =
-        (ceil(sqrt((double)numBins)) - 1) / BLOCK_SIZE_MAX_X + 1;
-
-    int gridSizeScanY =
-        (ceil(sqrt((double)numBins)) - 1) / BLOCK_SIZE_MAX_Y + 1;
-    
-    dim3 gridSizeScan(
-        gridSizeScanX,
-        gridSizeScanY,
-        1);
-    
-#endif
-    
-  unsigned int *binScan      = new unsigned int[numBins];
-
-#if defined(GATHER_ON_GPU)
-    
-    unsigned int *vals_src = d_inputVals;
-    unsigned int *pos_src  = d_inputPos;
-
-    unsigned int *vals_dst = d_outputVals;
-    unsigned int *pos_dst  = d_outputPos;
-
-#else
-
-  unsigned int *vals_src = h_inputVals;
-  unsigned int *pos_src  = h_inputPos;
-
-  unsigned int *vals_dst = h_outputVals;
-  unsigned int *pos_dst  = h_outputPos;
-
-#endif
-
-  //a simple radix sort - only guaranteed to work for numBits that are multiples of 2
-  for (unsigned int i = 0; i < 8 * sizeof(unsigned int); i += numBits) {
-    unsigned int mask = (numBins - 1) << i;
-
-    memset(binHistogram, 0, sizeof(unsigned int) * numBins); //zero out the bins
-    memset(binScan, 0, sizeof(unsigned int) * numBins); //zero out the bins
-
-#if defined (HISTOGRAM_ON_GPU)
-
-    checkCudaErrors(
-        cudaMemset(
-            d_binHisto,
-            0x0,
-            sizeof(unsigned int) *  numBins));
-
-    simple_histo_binary<<<gridSizeHistogram, blockSizeHistogram>>>(
-        d_binHisto,
-        d_inputVals,
-        mask,
-        i,
-        numElems);
-
-#if !defined(SCAN_ON_GPU)
-
-    checkCudaErrors(
-		cudaMemcpy(
-			binHistogram,
-			d_binHisto,
-			sizeof(unsigned int) * numBins,
-			cudaMemcpyDeviceToHost));
-
-#endif
-
-#else
-      
-    //perform histogram of data & mask into bins
-    for (unsigned int j = 0; j < numElems; ++j) {
-      unsigned int bin = (vals_src[j] & mask) >> i;
-      binHistogram[bin]++;
-    }
-
-#endif
-
-#if defined(SCAN_ON_GPU)
-
-    checkCudaErrors(
-        cudaMemset(
-            d_Scan,
-            0x0,
-            sizeof(unsigned int) *  numBins));
-
-    scan_naive_exclusive<<<gridSizeScan, blockSizeScan>>>(
-        d_binHisto,
-        d_Scan,
-        numBins);
-
-    checkCudaErrors(
-		cudaMemcpy(
-			binScan,
-			d_Scan,
-            sizeof(unsigned int) *  numBins,
-			cudaMemcpyDeviceToHost));
-      
-#else
-
-    //perform exclusive prefix sum (scan) on binHistogram to get starting
-    //location for each bin
-    for (unsigned int j = 1; j < numBins; ++j) {
-      binScan[j] = binScan[j - 1] + binHistogram[j - 1];
-    }
-
-#endif
-
-#if defined(GATHER_ON_GPU)
-      
-      gather<<<gridSizeHistogram, blockSizeHistogram>>>(
-        vals_src,
-        pos_src,
-        vals_dst,
-        pos_dst,
-        d_Scan,
-        mask,
-        i,
-        numElems);
-
-#else
-
-    //Gather everything into the correct location
-    //need to move vals and positions
-    for (unsigned int j = 0; j < numElems; ++j) {
-      unsigned int bin = (vals_src[j] & mask) >> i;
-      vals_dst[binScan[bin]] = vals_src[j];
-      pos_dst[binScan[bin]]  = pos_src[j];
-      binScan[bin]++;
-    }
-
-#endif
-
-    //swap the buffers (pointers only)
-    std::swap(vals_dst, vals_src);
-    std::swap(pos_dst, pos_src);
-  }
-
-#if defined(GATHER_ON_GPU)
-
-    checkCudaErrors(
-		cudaMemcpy(
-			d_outputVals,
-			d_inputVals,
-            sizeof(unsigned int) *  numElems,
-			cudaMemcpyDeviceToDevice));
-    
-    checkCudaErrors(
-		cudaMemcpy(
-			d_outputPos,
-			d_inputPos,
-            sizeof(unsigned int) *  numElems,
-			cudaMemcpyDeviceToDevice));
-    
-#else
-
-  //we did an even number of iterations, need to copy from input buffer into output
-  std::copy(h_inputVals, h_inputVals + numElems, h_outputVals);
-  std::copy(h_inputPos, h_inputPos + numElems, h_outputPos);
-
-#endif
-
-  delete[] binHistogram;
-  delete[] binScan;
-
-#if !defined(GATHER_ON_GPU)
-    
-    checkCudaErrors(
-		cudaMemcpy(
-			d_outputVals,
-			h_outputVals,
-			sizeof(unsigned int) * numElems,
-			cudaMemcpyHostToDevice));
-    
-    checkCudaErrors(
-		cudaMemcpy(
-			d_outputPos,
-			h_outputPos,
-			sizeof(unsigned int) * numElems,
-			cudaMemcpyHostToDevice));
-
-#endif
-    
-    delete []h_outputPos;
-    
-    delete []h_outputVals;
-    
-    delete []h_inputPos;
-    
-    delete []h_inputVals;
-
-#if defined (HISTOGRAM_ON_GPU)
-
-    checkCudaErrors(cudaFree(d_binHisto));
-
-#endif
-
-#if defined (SCAN_ON_GPU)
-
-    checkCudaErrors(cudaFree(d_Scan));
-
-#endif
-
-#endif
-
+  checkResultsExact(&h_outputVals[0], &h_yourOutputVals[0], numElems);
+  checkResultsExact(&h_outputPos[0], &h_yourOutputPos[0], numElems);
+  */
 }

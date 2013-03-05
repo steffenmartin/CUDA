@@ -83,7 +83,6 @@
 #include "reference_calc.cpp"
 #include "utils.h"
 #include "cuda_runtime.h"
-#include <math.h>
 
 // #define USE_PRINTF_FOR_DEBUG
 
@@ -185,13 +184,7 @@ __global__
 	}
 	else
 	{
-		// const int thread_1D_pos = thread_2D_pos.y * numCols + thread_2D_pos.x;
-		const int thread_1D_pos =
-			blockIdx.y * blockDim.y * gridDim.x +
-			blockIdx.x * blockDim.x * blockDim.y +
-			threadIdx.y * blockDim.x +
-			threadIdx.x;
-
+		const int thread_1D_pos = thread_2D_pos.y * numCols + thread_2D_pos.x;
 		float myItem = d_In[thread_1D_pos];
 		
 		// int myBin = ((myItem - d_Min[0]) / (d_Max[0] - d_Min[0])) * BIN_COUNT;
