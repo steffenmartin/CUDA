@@ -9,6 +9,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "HW3", "HW3\HW3.vcxproj", "{
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "HW4", "HW4\HW4.vcxproj", "{DFB5209B-222D-425F-8992-52957BB2C59E}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Scan", "Scan\Scan.vcxproj", "{A0A9F7F0-33B8-43EF-8588-171047BF2EF6}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -49,6 +51,12 @@ Global
 		{DFB5209B-222D-425F-8992-52957BB2C59E}.Release|Win32.Build.0 = Release|Win32
 		{DFB5209B-222D-425F-8992-52957BB2C59E}.Release|x64.ActiveCfg = Release|x64
 		{DFB5209B-222D-425F-8992-52957BB2C59E}.Release|x64.Build.0 = Release|x64
+		{A0A9F7F0-33B8-43EF-8588-171047BF2EF6}.Debug|Win32.ActiveCfg = Debug|Win32
+		{A0A9F7F0-33B8-43EF-8588-171047BF2EF6}.Debug|Win32.Build.0 = Debug|Win32
+		{A0A9F7F0-33B8-43EF-8588-171047BF2EF6}.Debug|x64.ActiveCfg = Debug|Win32
+		{A0A9F7F0-33B8-43EF-8588-171047BF2EF6}.Release|Win32.ActiveCfg = Release|Win32
+		{A0A9F7F0-33B8-43EF-8588-171047BF2EF6}.Release|Win32.Build.0 = Release|Win32
+		{A0A9F7F0-33B8-43EF-8588-171047BF2EF6}.Release|x64.ActiveCfg = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
