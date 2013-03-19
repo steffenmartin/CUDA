@@ -105,6 +105,8 @@ __global__
 							 float *d_In,
 							 int numRows, int numCols)
 {
+	__shared__ float _sharedVals[2 * BLOCK_SIZE_MAX_X * BLOCK_SIZE_MAX_Y];
+
 	int threadsPerBlock = blockDim.x * blockDim.y;
 
     int blockId = blockIdx.x + (blockIdx.y * gridDim.x);
@@ -131,6 +133,12 @@ __global__
 		int tid =
 			threadIdx.y * blockDim.x + threadIdx.x;
 
+		_sharedVals[tid] =
+			d_In[myId];
+
+		_sharedVals[tid + numPixelBlock] =
+			d_In[myId + numPixelTotal];
+
 		// do reduction in global mem
 		for (unsigned int s = numPixelBlock / 2; s > 0; s >>= 1)
 		{
@@ -140,9 +148,13 @@ __global__
 				// Min
 				d_In[myId] =
 					min(d_In[myId], d_In[myId + s]);
+				_sharedVals[tid] =
+					min(_sharedVals[tid], _sharedVals[tid + s]);
 				// Max
 				d_In[myId + numPixelTotal] =
 					max(d_In[myId + numPixelTotal], d_In[myId + s + numPixelTotal]);
+				_sharedVals[tid + numPixelBlock] =
+					max(_sharedVals[tid + numPixelBlock], _sharedVals[tid + numPixelBlock + s]);
 			}
 			__syncthreads();        // make sure all min/max at one stage are done!
 		}
@@ -154,15 +166,19 @@ __global__
 			{
 				// Min
 				d_Out[myId / numPixelBlock] = d_In[myId];
+				d_Out[myId / numPixelBlock] = _sharedVals[tid];
 				// Max
 				d_Out[(myId / numPixelBlock) + numPixelBlock] = d_In[myId + numPixelTotal];
+				d_Out[(myId / numPixelBlock) + numPixelBlock] = _sharedVals[tid + numPixelBlock];
 			}
 			else
 			{
 				// Min
 				d_Out[myId / numPixelBlock] = d_In[myId];
+				d_Out[myId / numPixelBlock] = _sharedVals[tid];
 				// Max
 				d_Out[(myId / numPixelBlock) + 1] = d_In[myId + numPixelTotal];
+				d_Out[(myId / numPixelBlock) + 1] = _sharedVals[tid + numPixelBlock];
 			}
 		}
 	}
