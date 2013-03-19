@@ -102,8 +102,10 @@
 
 __global__
 	void global_find_min_max(float *d_Out,
-							 float *d_In,
-							 int numRows, int numCols)
+							 const float *d_In,
+							 int numRows,
+							 int numCols,
+							 bool isInitialRun)
 {
 	__shared__ float _sharedVals[2 * BLOCK_SIZE_MAX_X * BLOCK_SIZE_MAX_Y];
 
@@ -134,11 +136,22 @@ __global__
 			threadIdx.y * blockDim.x + threadIdx.x;
 
 		// Fetch values into shared memory
-		_sharedVals[tid] =
-			d_In[myId];
+		if (isInitialRun)
+		{
+			_sharedVals[tid] =
+				d_In[myId];
 
-		_sharedVals[tid + numPixelBlock] =
-			d_In[myId + numPixelTotal];
+			_sharedVals[tid + numPixelBlock] =
+				d_In[myId];
+		}
+		else
+		{
+			_sharedVals[tid] =
+				d_In[myId];
+
+			_sharedVals[tid + numPixelBlock] =
+				d_In[myId + numPixelTotal];
+		}
 
 		// do reduction in global mem
 		for (unsigned int s = numPixelBlock / 2; s > 0; s >>= 1)
@@ -416,25 +429,6 @@ void your_histogram_and_prefixsum(const float* const d_logLuminance,
 	// from the image size and and block size.
 	dim3 gridSize(gridSizeX, gridSizeY, 1);
 
-	float *d_IntermediateIn;
-	// Allocate memory on the device for storing the intermediate input values and copy them
-	checkCudaErrors(
-		cudaMalloc(
-			&d_IntermediateIn,
-			2 * sizeof(float) * numRows * numCols));
-	checkCudaErrors(
-		cudaMemcpy(
-			d_IntermediateIn,
-			d_logLuminance,
-			sizeof(float) * numRows * numCols,
-			cudaMemcpyDeviceToDevice));
-	checkCudaErrors(
-		cudaMemcpy(
-			d_IntermediateIn + numRows * numCols,
-			d_logLuminance,
-			sizeof(float) * numRows * numCols,
-			cudaMemcpyDeviceToDevice));
-
 	float *d_IntermediateOut;
 	// Allocate memory on the device for storing the intermediate output values
 	checkCudaErrors(
@@ -486,9 +480,10 @@ void your_histogram_and_prefixsum(const float* const d_logLuminance,
 
 	global_find_min_max<<<gridSize, blockSize>>>
 		(d_IntermediateOut,
-		 d_IntermediateIn,
+		 d_logLuminance,
 		 numRows,
-		 numCols);
+		 numCols,
+		 true);
 
 #if defined(USE_PRINTF_FOR_DEBUG)
 
@@ -505,7 +500,8 @@ void your_histogram_and_prefixsum(const float* const d_logLuminance,
 		(d_IntermediateOut,
 		 d_IntermediateOut,
 		 gridSizeX,
-		 gridSizeY);
+		 gridSizeY,
+		 false);
 
 #if defined(USE_PRINTF_FOR_DEBUG)
 
@@ -674,7 +670,6 @@ void your_histogram_and_prefixsum(const float* const d_logLuminance,
 
 #endif
 
-	checkCudaErrors(cudaFree(d_IntermediateIn));
 	checkCudaErrors(cudaFree(d_IntermediateOut));
 	checkCudaErrors(cudaFree(d_Bins));
 
