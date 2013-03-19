@@ -220,6 +220,7 @@ __global__
 	__shared__ unsigned int _boundaryValueCurrent;
 	__shared__ unsigned int _finalAdd;
 	unsigned int _finalRemember;
+	__shared__ unsigned int _sharedVals[BLOCK_SIZE_SCAN_MAX];
 
 	int myId = 
 		threadIdx.x;
@@ -243,7 +244,7 @@ __global__
 	if (myId < size)
 	{
 		// Initial data fetch
-		d_Out[myId + offset] =
+		_sharedVals[myId] =
 			d_In[myId + offset];
 
 		__syncthreads();
@@ -267,8 +268,8 @@ __global__
 		{
 			if ((_selfMask & myId) == _selfMask)
 			{
-				d_Out[myId + offset] +=
-					d_Out[(myId + offset) - _neighbor];
+				_sharedVals[myId] +=
+					_sharedVals[myId - _neighbor];
 			}
 
 			_stepsLeft >>= 1;
@@ -295,12 +296,12 @@ __global__
 			if ((_selfMask & myId) == _selfMask)
 			{
 				unsigned int _tmp =
-					d_Out[myId + offset];
+					_sharedVals[myId];
 
-				d_Out[myId + offset] +=
-					d_Out[(myId + offset) - _neighbor];
+				_sharedVals[myId] +=
+					_sharedVals[myId - _neighbor];
 
-				d_Out[(myId + offset) - _neighbor] =
+				_sharedVals[myId - _neighbor] =
 					_tmp;
 
 				_fillInBoundaryValue =
@@ -321,9 +322,9 @@ __global__
 					if ((myId + _neighbor) >= size)
 					{
 						unsigned int _boundaryValueTmp =
-							_boundaryValueCurrent + d_Out[(myId + offset)];
+							_boundaryValueCurrent + _sharedVals[(myId)];
 
-						d_Out[myId + offset] =
+						_sharedVals[myId] =
 							_boundaryValueCurrent;
 
 						_boundaryValueCurrent =
@@ -342,24 +343,27 @@ __global__
 
 		if (offset > 0)
 		{
-			d_Out[(myId + offset)] +=
+			_sharedVals[myId] +=
 				_finalAdd;
 		}
 
 		__syncthreads();
-	}
 
-	if (myId == 0)
-	{
-		if (isLastCall)
+		d_Out[myId + offset] =
+				_sharedVals[myId];
+
+		if (myId == 0)
 		{
-			d_Out[0] =
-				0;
-		}
-		else
-		{
-			d_Out[0] =
-				_finalRemember;
+			if (isLastCall)
+			{
+				d_Out[0] =
+					0;
+			}
+			else
+			{
+				d_Out[0] =
+					_finalRemember;
+			}
 		}
 	}
 }
