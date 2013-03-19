@@ -93,10 +93,14 @@ cudaError_t scanExclusiveWithCuda(const unsigned int *h_In, unsigned int *h_Out,
 __global__
 	void scanKernelExclusive(const unsigned int *d_In,
 							 unsigned int *d_Out,
-							 size_t size)
+							 size_t size,
+							 size_t offset,
+							 bool isLastCall)
 {
 	// Stores boundary values to account for sizes that are not powers of 2
 	__shared__ unsigned int _boundaryValueCurrent;
+	__shared__ unsigned int _finalAdd;
+	unsigned int _finalRemember;
 
 	int myId = 
 		threadIdx.x;
@@ -105,14 +109,23 @@ __global__
 	{
 		_boundaryValueCurrent = 0;
 
-		__syncthreads();
+		_finalRemember =
+			d_In[offset + size - 1];
+
+		if (offset > 0)
+		{
+			_finalAdd =
+				d_Out[0] + d_Out[offset - 1];
+		}
 	}
+
+	__syncthreads();
 
 	if (myId < size)
 	{
 		// Initial data fetch
-		d_Out[myId] =
-			d_In[myId];
+		d_Out[myId + offset] =
+			d_In[myId + offset];
 
 		__syncthreads();
 
@@ -135,8 +148,8 @@ __global__
 		{
 			if ((_selfMask & myId) == _selfMask)
 			{
-				d_Out[myId] +=
-					d_Out[myId - _neighbor];
+				d_Out[myId + offset] +=
+					d_Out[(myId + offset) - _neighbor];
 			}
 
 			_stepsLeft >>= 1;
@@ -163,12 +176,12 @@ __global__
 			if ((_selfMask & myId) == _selfMask)
 			{
 				unsigned int _tmp =
-					d_Out[myId];
+					d_Out[myId + offset];
 
-				d_Out[myId] +=
-					d_Out[myId - _neighbor];
+				d_Out[myId + offset] +=
+					d_Out[(myId + offset) - _neighbor];
 
-				d_Out[myId - _neighbor] =
+				d_Out[(myId + offset) - _neighbor] =
 					_tmp;
 
 				_fillInBoundaryValue =
@@ -189,9 +202,9 @@ __global__
 					if ((myId + _neighbor) >= size)
 					{
 						unsigned int _boundaryValueTmp =
-							_boundaryValueCurrent + d_Out[myId];
+							_boundaryValueCurrent + d_Out[(myId + offset)];
 
-						d_Out[myId] =
+						d_Out[myId + offset] =
 							_boundaryValueCurrent;
 
 						_boundaryValueCurrent =
@@ -206,6 +219,28 @@ __global__
 			_stepsLeft >>= 1;
 
 			__syncthreads();
+		}
+
+		if (offset > 0)
+		{
+			d_Out[(myId + offset)] +=
+				_finalAdd;
+		}
+
+		__syncthreads();
+	}
+
+	if (myId == 0)
+	{
+		if (isLastCall)
+		{
+			d_Out[0] =
+				0;
+		}
+		else
+		{
+			d_Out[0] =
+				_finalRemember;
 		}
 	}
 }
@@ -513,7 +548,8 @@ cudaError_t scanExclusiveWithCuda(const unsigned int *h_In, unsigned int *h_Out,
     }
 
 	 // Launch a kernel on the GPU with one thread for each element.
-	scanKernelExclusive<<<1, size>>>(d_In, d_Out, size);
+	scanKernelExclusive<<<1, size>>>(d_In, d_Out, size >> 1, 0, false);
+	scanKernelExclusive<<<1, size>>>(d_In, d_Out, size - (size >> 1), size >> 1, true);
 
     // Copy output vector from GPU buffer to host memory.
     cudaStatus = cudaMemcpy(h_Out, d_Out, size * sizeof(unsigned int), cudaMemcpyDeviceToHost);
