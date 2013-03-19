@@ -86,13 +86,16 @@ __global__ void scanKernelInclusive(int *c, const int *a, size_t size, size_t of
 
 #if defined(SCAN_EXCLUSIVE)
 
-cudaError_t scanExclusiveWithCuda(int *c, const int *a, size_t size);
+cudaError_t scanExclusiveWithCuda(const unsigned int *h_In, unsigned int *h_Out, size_t size);
 
 // Exclusive Scan (Blelloch)
 
-__global__ void scanKernelExclusive(int *c, const int *a, size_t size)
+__global__
+	void scanKernelExclusive(const unsigned int *d_In,
+							 unsigned int *d_Out,
+							 size_t size)
 {
-	// Stores boundary values to account for size that are not powers of 2
+	// Stores boundary values to account for sizes that are not powers of 2
 	__shared__ unsigned int _boundaryValueCurrent;
 
 	int myId = 
@@ -108,8 +111,8 @@ __global__ void scanKernelExclusive(int *c, const int *a, size_t size)
 	if (myId < size)
 	{
 		// Initial data fetch
-		c[myId] =
-			a[myId];
+		d_Out[myId] =
+			d_In[myId];
 
 		__syncthreads();
 
@@ -132,8 +135,8 @@ __global__ void scanKernelExclusive(int *c, const int *a, size_t size)
 		{
 			if ((_selfMask & myId) == _selfMask)
 			{
-				c[myId] +=
-					c[myId - _neighbor];
+				d_Out[myId] +=
+					d_Out[myId - _neighbor];
 			}
 
 			_stepsLeft >>= 1;
@@ -160,12 +163,12 @@ __global__ void scanKernelExclusive(int *c, const int *a, size_t size)
 			if ((_selfMask & myId) == _selfMask)
 			{
 				unsigned int _tmp =
-					c[myId];
+					d_Out[myId];
 
-				c[myId] +=
-					c[myId - _neighbor];
+				d_Out[myId] +=
+					d_Out[myId - _neighbor];
 
-				c[myId - _neighbor] =
+				d_Out[myId - _neighbor] =
 					_tmp;
 
 				_fillInBoundaryValue =
@@ -186,9 +189,9 @@ __global__ void scanKernelExclusive(int *c, const int *a, size_t size)
 					if ((myId + _neighbor) >= size)
 					{
 						unsigned int _boundaryValueTmp =
-							_boundaryValueCurrent + c[myId];
+							_boundaryValueCurrent + d_Out[myId];
 
-						c[myId] =
+						d_Out[myId] =
 							_boundaryValueCurrent;
 
 						_boundaryValueCurrent =
@@ -212,9 +215,9 @@ __global__ void scanKernelExclusive(int *c, const int *a, size_t size)
 int main()
 {
     const int arraySize = 13;
-    const int a[arraySize] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13 };
-    const int b[arraySize] = { 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130 };
-    int c[arraySize] = { 0 };
+    const unsigned int a[arraySize] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13 };
+    const unsigned int b[arraySize] = { 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130 };
+    unsigned int c[arraySize] = { 0 };
 
 	cudaError_t cudaStatus =
 		cudaSuccess;
@@ -280,7 +283,7 @@ int main()
 		GpuTimer timer;
 		timer.Start();
 		// Scan vector in parallel.
-		cudaStatus = scanExclusiveWithCuda(c, a, arraySize);
+		cudaStatus = scanExclusiveWithCuda(a, c, arraySize);
 		timer.Stop();
 		_elapsed = timer.Elapsed();
 	}
@@ -467,10 +470,10 @@ Error:
 
 #if defined(SCAN_EXCLUSIVE)
 
-cudaError_t scanExclusiveWithCuda(int *c, const int *a, size_t size)
+cudaError_t scanExclusiveWithCuda(const unsigned int *h_In, unsigned int *h_Out, size_t size)
 {
-	int *dev_a = 0;
-	int *dev_c = 0;
+	unsigned int *d_In = 0;
+	unsigned int *d_Out = 0;
 
     cudaError_t cudaStatus =
 		size < MAX_THREAD_BLOCK_SIZE ?
@@ -490,38 +493,38 @@ cudaError_t scanExclusiveWithCuda(int *c, const int *a, size_t size)
     }
 
     // Allocate GPU buffers for two vectors (one input, one output)    .
-    cudaStatus = cudaMalloc((void**)&dev_c, size * sizeof(int));
+    cudaStatus = cudaMalloc((void**)&d_Out, size * sizeof(unsigned int));
     if (cudaStatus != cudaSuccess) {
         fprintf(stderr, "cudaMalloc failed!");
         goto Error;
     }
 
-	cudaStatus = cudaMalloc((void**)&dev_a, size * sizeof(int));
+	cudaStatus = cudaMalloc((void**)&d_In, size * sizeof(unsigned int));
     if (cudaStatus != cudaSuccess) {
         fprintf(stderr, "cudaMalloc failed!");
         goto Error;
     }
 
 	// Copy input vectors from host memory to GPU buffers.
-    cudaStatus = cudaMemcpy(dev_a, a, size * sizeof(int), cudaMemcpyHostToDevice);
+    cudaStatus = cudaMemcpy(d_In, h_In, size * sizeof(unsigned int), cudaMemcpyHostToDevice);
     if (cudaStatus != cudaSuccess) {
         fprintf(stderr, "cudaMemcpy failed!");
         goto Error;
     }
 
 	 // Launch a kernel on the GPU with one thread for each element.
-	scanKernelExclusive<<<1, size>>>(dev_c, dev_a, size);
+	scanKernelExclusive<<<1, size>>>(d_In, d_Out, size);
 
     // Copy output vector from GPU buffer to host memory.
-    cudaStatus = cudaMemcpy(c, dev_c, size * sizeof(int), cudaMemcpyDeviceToHost);
+    cudaStatus = cudaMemcpy(h_Out, d_Out, size * sizeof(unsigned int), cudaMemcpyDeviceToHost);
     if (cudaStatus != cudaSuccess) {
         fprintf(stderr, "cudaMemcpy failed!");
         goto Error;
     }
 
 Error:
-    cudaFree(dev_c);
-    cudaFree(dev_a);
+    cudaFree(d_Out);
+    cudaFree(d_In);
 
 	return cudaStatus;
 }
