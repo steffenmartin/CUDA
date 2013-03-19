@@ -107,35 +107,26 @@ __global__
 						 float *d_InMax,
 						 int numRows, int numCols)
 {
-	// Determine position in 2D (for boundary checking)
-	const int2 thread_2D_pos =
-		make_int2( blockIdx.x * blockDim.x + threadIdx.x,
-				   blockIdx.y * blockDim.y + threadIdx.y);
+	int myId =
+        blockIdx.y * blockDim.y * gridDim.x +
+        blockIdx.x * blockDim.x * blockDim.y +
+        threadIdx.y * blockDim.x +
+        threadIdx.x;
 
-	if ( thread_2D_pos.x >= numCols ||
-		 thread_2D_pos.y >= numRows )
+	// Let's calculate total number of pixels (just once)
+	const int numPixelTotal =
+		numRows * numCols;
+
+	// Let's determine the number of pixel this block is working on
+	const int numPixelBlock =
+		(blockDim.x * blockDim.y);
+
+	if ( myId >= numPixelTotal )
 	{
 		return;
 	}
 	else
 	{
-		// Determine position in 1D (walking along columns and jumping to the next row at the end of the colum).
-		const int _thread_1D_pos =
-			thread_2D_pos.y * numCols + thread_2D_pos.x;
-
-		// Let's calculate total number of pixels (just once)
-		const int numPixelTotal =
-			numRows * numCols;
-
-		// Let's determine the number of pixel this block is working on
-		const int numPixelBlock =
-			(blockDim.x * blockDim.y);
-
-		int thread_1D_pos =
-			blockIdx.x * numPixelBlock + threadIdx.y * blockDim.x + threadIdx.x;
-		thread_1D_pos +=
-			blockIdx.y * blockDim.y * numCols;
-
 		// Let's determine the index inside of this block
 		int tid =
 			threadIdx.y * blockDim.x + threadIdx.x;
@@ -144,12 +135,12 @@ __global__
 		for (unsigned int s = numPixelBlock / 2; s > 0; s >>= 1)
 		{
 			if (tid < s &&
-				(thread_1D_pos + s) < numPixelTotal)
+				(myId + s) < numPixelTotal)
 			{
-				d_In[thread_1D_pos] =
-					min(d_In[thread_1D_pos], d_In[thread_1D_pos + s]);
-				d_InMax[thread_1D_pos] =
-					max(d_InMax[thread_1D_pos], d_InMax[thread_1D_pos + s]);
+				d_In[myId] =
+					min(d_In[myId], d_In[myId + s]);
+				d_InMax[myId] =
+					max(d_InMax[myId], d_InMax[myId + s]);
 			}
 			__syncthreads();        // make sure all min/max at one stage are done!
 		}
@@ -157,8 +148,8 @@ __global__
 		// only thread 0 writes result for this block back to global mem
 		if (tid == 0)
 		{
-			d_Out[thread_1D_pos / numPixelBlock] = d_In[thread_1D_pos];
-			d_OutMax[thread_1D_pos / numPixelBlock] = d_InMax[thread_1D_pos];
+			d_Out[myId / numPixelBlock] = d_In[myId];
+			d_OutMax[myId / numPixelBlock] = d_InMax[myId];
 		}
 	}
 }
