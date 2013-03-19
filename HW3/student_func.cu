@@ -98,8 +98,7 @@
 #define BLOCK_SIZE_HISTO_MAX_X 22				// i.e. maximum number of threads per block (x dimension)
 #define BLOCK_SIZE_HISTO_MAX_Y 22				// i.e. maximum number of threads per block (y dimension)
 
-#define BLOCK_SIZE_SCAN_MAX_X 512				// i.e. maximum number of threads per block (x dimension)
-#define BLOCK_SIZE_SCAN_MAX_Y 1					// i.e. maximum number of threads per block (y dimension)
+#define BLOCK_SIZE_SCAN_MAX 512					// i.e. maximum number of threads per block (x dimension)
 
 __global__
 	void global_find_min(float *d_Out,
@@ -198,19 +197,159 @@ __global__
 	}
 }
 
-__global__
-	void scan_naive_exclusive(unsigned int *d_In,
-							  unsigned int *d_Out,
-							  int numElements)
-{
-	int myId = threadIdx.x + blockDim.x * blockIdx.x;
+// Exclusive Scan (Blelloch)
 
-	if (myId < numElements)
+__global__
+	void scanKernelExclusive(const unsigned int *d_In,
+							 unsigned int *d_Out,
+							 size_t size,
+							 size_t offset,
+							 bool isLastCall)
+{
+	// Stores boundary values to account for sizes that are not powers of 2
+	__shared__ unsigned int _boundaryValueCurrent;
+	__shared__ unsigned int _finalAdd;
+	unsigned int _finalRemember;
+
+	int myId = 
+		threadIdx.x;
+
+	if (myId == 0)
 	{
-		for (int i = 0; i < myId; i++)
+		_boundaryValueCurrent = 0;
+
+		_finalRemember =
+			d_In[offset + size - 1];
+
+		if (offset > 0)
 		{
-			d_Out[myId] +=
-				d_In[i];
+			_finalAdd =
+				d_Out[0] + d_Out[offset - 1];
+		}
+	}
+
+	__syncthreads();
+
+	if (myId < size)
+	{
+		// Initial data fetch
+		d_Out[myId + offset] =
+			d_In[myId + offset];
+
+		__syncthreads();
+
+		// Used to track how many steps are left by right-shifting its value
+		// (i.e. implicitely calculating log2 of the size)
+		size_t _stepsLeft =
+			size;
+
+		// Which neighbor to the left has to be added?
+		unsigned int _neighbor =
+			1;
+
+		// Is it my turn to add?
+		unsigned int _selfMask =
+			1;
+
+		// Step 1: Adding neighbors
+
+		while (_stepsLeft)
+		{
+			if ((_selfMask & myId) == _selfMask)
+			{
+				d_Out[myId + offset] +=
+					d_Out[(myId + offset) - _neighbor];
+			}
+
+			_stepsLeft >>= 1;
+			_neighbor <<= 1;
+			_selfMask <<= 1;
+			_selfMask++;
+
+			__syncthreads();
+		}
+
+		// Step 2: Down-sweep and adding neighbors again
+
+		// Adjustment to properly start
+		_selfMask--;
+		_selfMask >>= 1;
+		_neighbor >>= 1;
+		_stepsLeft = size;
+
+		while (_stepsLeft)
+		{
+			bool _fillInBoundaryValue =
+				true;
+
+			if ((_selfMask & myId) == _selfMask)
+			{
+				unsigned int _tmp =
+					d_Out[myId + offset];
+
+				d_Out[myId + offset] +=
+					d_Out[(myId + offset) - _neighbor];
+
+				d_Out[(myId + offset) - _neighbor] =
+					_tmp;
+
+				_fillInBoundaryValue =
+					false;
+			}
+
+			__syncthreads();
+
+			// Cross-sweep of boundary value
+
+			unsigned int _selfMaskCrossSweep =
+				_selfMask >> 1;
+
+			if (_fillInBoundaryValue)
+			{
+				if (((_selfMask & myId) ^ _selfMaskCrossSweep) == 0)
+				{
+					if ((myId + _neighbor) >= size)
+					{
+						unsigned int _boundaryValueTmp =
+							_boundaryValueCurrent + d_Out[(myId + offset)];
+
+						d_Out[myId + offset] =
+							_boundaryValueCurrent;
+
+						_boundaryValueCurrent =
+							_boundaryValueTmp;
+					}
+				}
+			}
+			
+			_selfMask--;
+			_selfMask >>= 1;
+			_neighbor >>= 1;
+			_stepsLeft >>= 1;
+
+			__syncthreads();
+		}
+
+		if (offset > 0)
+		{
+			d_Out[(myId + offset)] +=
+				_finalAdd;
+		}
+
+		__syncthreads();
+	}
+
+	if (myId == 0)
+	{
+		if (isLastCall)
+		{
+			d_Out[0] =
+				0;
+		}
+		else
+		{
+			d_Out[0] =
+				_finalRemember;
 		}
 	}
 }
@@ -507,22 +646,36 @@ void your_histogram_and_prefixsum(const float* const d_logLuminance,
        the cumulative distribution of luminance values (this should go in the
        incoming d_cdf pointer which already has been allocated for you)       */
 
-	gridSizeX = (numBins - 1) / BLOCK_SIZE_SCAN_MAX_X + 1;
+	gridSizeX = 1;
 	gridSizeY = 1;
-
-	// Block size (i.e., number of threads per block)
-	blockSize.x = BLOCK_SIZE_SCAN_MAX_X;
-	blockSize.y = BLOCK_SIZE_SCAN_MAX_Y;
 
 	// Compute grid size (i.e., number of blocks per kernel launch)
 	// from the image size and and block size.
 	gridSize.x = gridSizeX;
 	gridSize.y = gridSizeY;
 
-	scan_naive_exclusive<<<gridSize, blockSize>>>(
-		d_Bins,
-		d_cdf,
-		numBins);
+	int _binsLeft =
+		numBins;
+
+	while (_binsLeft)
+	{
+		// Block size (i.e., number of threads per block)
+		blockSize.x = 
+			_binsLeft > BLOCK_SIZE_SCAN_MAX ?
+				BLOCK_SIZE_SCAN_MAX :
+				_binsLeft;
+		blockSize.y = 1;
+
+		scanKernelExclusive<<<gridSize, blockSize>>>(
+			d_Bins,
+			d_cdf,
+			blockSize.x,
+			numBins - _binsLeft,
+			(_binsLeft - blockSize.x) <= 0);
+
+		_binsLeft -=
+			blockSize.x;
+	}
 
   /****************************************************************************
   * You can use the code below to help with debugging, but make sure to       *
