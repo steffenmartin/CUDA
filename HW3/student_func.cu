@@ -176,20 +176,25 @@ __global__
 					  float _range,
 					  int numRows, int numCols)
 {
-	// Determine position in 2D (for boundary checking)
-	const int2 thread_2D_pos =
-		make_int2( blockIdx.x * blockDim.x + threadIdx.x,
-				   blockIdx.y * blockDim.y + threadIdx.y);
+	int threadsPerBlock = blockDim.x * blockDim.y;
 
-	if ( thread_2D_pos.x >= numCols ||
-		 thread_2D_pos.y >= numRows )
+    int blockId = blockIdx.x + (blockIdx.y * gridDim.x);
+
+    int threadId = threadIdx.x + (threadIdx.y * blockDim.x);
+
+    int myId = (blockId * threadsPerBlock) + threadId;
+
+	// Let's calculate total number of pixels (just once)
+	const int numPixelTotal =
+		numRows * numCols;
+
+	if ( myId >= numPixelTotal )
 	{
 		return;
 	}
 	else
 	{
-		const int thread_1D_pos = thread_2D_pos.y * numCols + thread_2D_pos.x;
-		float myItem = d_In[thread_1D_pos];
+		float myItem = d_In[myId];
 		
 		// int myBin = ((myItem - d_Min[0]) / (d_Max[0] - d_Min[0])) * BIN_COUNT;
 
