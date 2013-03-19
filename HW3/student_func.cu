@@ -107,11 +107,13 @@ __global__
 						 float *d_InMax,
 						 int numRows, int numCols)
 {
-	int myId =
-        blockIdx.y * blockDim.y * gridDim.x +
-        blockIdx.x * blockDim.x * blockDim.y +
-        threadIdx.y * blockDim.x +
-        threadIdx.x;
+	int threadsPerBlock = blockDim.x * blockDim.y;
+
+    int blockId = blockIdx.x + (blockIdx.y * gridDim.x);
+
+    int threadId = threadIdx.x + (threadIdx.y * blockDim.x);
+
+    int myId = (blockId * threadsPerBlock) + threadId;
 
 	// Let's calculate total number of pixels (just once)
 	const int numPixelTotal =
