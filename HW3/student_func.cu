@@ -434,7 +434,7 @@ void your_histogram_and_prefixsum(const float* const d_logLuminance,
 	checkCudaErrors(
 		cudaMalloc(
 			&d_IntermediateOut,
-			2 * sizeof(float) * gridSizeX * gridSizeY));
+			max((unsigned int)(2 * sizeof(float) * gridSizeX * gridSizeY), (unsigned int)(sizeof(unsigned int) * numBins))));
 	checkCudaErrors(
 		cudaMemset(
 			d_IntermediateOut,
@@ -549,13 +549,16 @@ void your_histogram_and_prefixsum(const float* const d_logLuminance,
        the formula: bin = (lum[i] - lumMin) / lumRange * numBins
 	   */
 
-	unsigned int *d_Bins;
+	unsigned int *d_Bins =
+		reinterpret_cast<unsigned int *>(d_IntermediateOut);
 
 	// Allocate memory on the device for storing the intermediate output values
+	/*
 	checkCudaErrors(
 		cudaMalloc(
 			&d_Bins,
 			sizeof(unsigned int) * numBins));
+			*/
 	checkCudaErrors(
 		cudaMemset(
 			d_Bins,
@@ -671,7 +674,6 @@ void your_histogram_and_prefixsum(const float* const d_logLuminance,
 #endif
 
 	checkCudaErrors(cudaFree(d_IntermediateOut));
-	checkCudaErrors(cudaFree(d_Bins));
 
 #if defined(USE_PRINTF_FOR_DEBUG)
 
