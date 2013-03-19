@@ -133,6 +133,7 @@ __global__
 		int tid =
 			threadIdx.y * blockDim.x + threadIdx.x;
 
+		// Fetch values into shared memory
 		_sharedVals[tid] =
 			d_In[myId];
 
@@ -146,13 +147,9 @@ __global__
 				(myId + s) < numPixelTotal)
 			{
 				// Min
-				d_In[myId] =
-					min(d_In[myId], d_In[myId + s]);
 				_sharedVals[tid] =
 					min(_sharedVals[tid], _sharedVals[tid + s]);
 				// Max
-				d_In[myId + numPixelTotal] =
-					max(d_In[myId + numPixelTotal], d_In[myId + s + numPixelTotal]);
 				_sharedVals[tid + numPixelBlock] =
 					max(_sharedVals[tid + numPixelBlock], _sharedVals[tid + numPixelBlock + s]);
 			}
