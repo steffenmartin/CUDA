@@ -450,18 +450,6 @@ void your_histogram_and_prefixsum(const float* const d_logLuminance,
 			0x0,
 			2 * sizeof(float) * gridSizeX * gridSizeY));
 
-	float *d_MinMaxOut;
-	// Allocate memory on the device for storing the output value
-	checkCudaErrors(
-		cudaMalloc(
-			&d_MinMaxOut,
-			2 * sizeof(float)));
-	checkCudaErrors(
-		cudaMemset(
-			d_MinMaxOut,
-			0x0,
-			2 * sizeof(float)));
-
 #if defined(USE_PRINTF_FOR_DEBUG)
 
 	float *h_Intermediate =
@@ -517,7 +505,7 @@ void your_histogram_and_prefixsum(const float* const d_logLuminance,
 #endif
 
 	global_find_min_max<<<1, blockSize>>>
-		(d_MinMaxOut,
+		(d_IntermediateOut,
 		 d_IntermediateOut,
 		 gridSizeX,
 		 gridSizeY);
@@ -527,7 +515,7 @@ void your_histogram_and_prefixsum(const float* const d_logLuminance,
 	checkCudaErrors(
 		cudaMemcpy(
 			&h_Out,
-			&d_MinMaxOut[0],
+			&d_IntermediateOut[0],
 			sizeof(float),
 			cudaMemcpyDeviceToHost));
 
@@ -536,7 +524,7 @@ void your_histogram_and_prefixsum(const float* const d_logLuminance,
 	checkCudaErrors(
 		cudaMemcpy(
 			&h_Out,
-			&d_MinMaxOut[1],
+			&d_IntermediateOut[1],
 			sizeof(float),
 			cudaMemcpyDeviceToHost));
 
@@ -553,7 +541,7 @@ void your_histogram_and_prefixsum(const float* const d_logLuminance,
 	checkCudaErrors(
 		cudaMemcpy(
 			&h_MinMaxOut[0],
-			d_MinMaxOut,
+			d_IntermediateOut,
 			2 * sizeof(float),
 			cudaMemcpyDeviceToHost));
 
