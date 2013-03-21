@@ -80,7 +80,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>$(OPENCV_PATH)\include;$(OPENCV_PATH)\modules\core\include;$(OPENCV_PATH)\modules\highgui\include;$(OPENCV_PATH)\modules\flann\include;$(OPENCV_PATH)\modules\imgproc\include;$(OPENCV_PATH)\modules\photo\include;$(OPENCV_PATH)\modules\video\include;$(OPENCV_PATH)\modules\features2d\include;$(OPENCV_PATH)\modules\objdetect\include;$(OPENCV_PATH)\modules\calib3d\include;$(OPENCV_PATH)\modules\ml\include;$(OPENCV_PATH)\modules\contrib\include;C:\Users\smartin\Documents\GitHub\cs344\HW3;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(OPENCV_PATH)\include;$(OPENCV_PATH)\modules\core\include;$(OPENCV_PATH)\modules\highgui\include;$(OPENCV_PATH)\modules\flann\include;$(OPENCV_PATH)\modules\imgproc\include;$(OPENCV_PATH)\modules\photo\include;$(OPENCV_PATH)\modules\video\include;$(OPENCV_PATH)\modules\features2d\include;$(OPENCV_PATH)\modules\objdetect\include;$(OPENCV_PATH)\modules\calib3d\include;$(OPENCV_PATH)\modules\ml\include;$(OPENCV_PATH)\modules\contrib\include;..\..\cs344\HW3;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
