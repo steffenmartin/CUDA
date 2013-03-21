@@ -44,18 +44,25 @@
  */
 
 
-#define USE_REFERENCE_CALCULATION
+// #define USE_REFERENCE_CALCULATION
 
-#if defined(USE_REFERENCE_CALCULATION)
+#if !defined(USE_REFERENCE_CALCULATION)
 
 #define HISTOGRAM_ON_GPU
+
+#if defined(HISTOGRAM_ON_GPU)
+
+// #define HISTOGRAM_ON_GPU_DBG
+
+#endif
+
 #define SCAN_ON_GPU
 // #define GATHER_ON_GPU
 
 #endif
 
-#define BLOCK_SIZE_MAX_X 32
-#define BLOCK_SIZE_MAX_Y 32
+#define BLOCK_SIZE_MAX_X 20
+#define BLOCK_SIZE_MAX_Y 20
 
 __global__
     void simple_histo_binary(
@@ -64,13 +71,14 @@ __global__
         const unsigned int mask,
         const unsigned int index,
         const size_t numElems)
-{    
-    int myId =
-        blockIdx.y * blockDim.y * gridDim.x +
-        blockIdx.x * blockDim.x * blockDim.y +
-        threadIdx.y * blockDim.x +
-        threadIdx.x;
-        
+{
+    int threadsPerBlock = blockDim.x * blockDim.y;
+
+    int blockId = blockIdx.x + (blockIdx.y * gridDim.x);
+
+    int threadId = threadIdx.x + (threadIdx.y * blockDim.x);
+
+    int myId = (blockId * threadsPerBlock) + threadId;
 
     if (myId < numElems)
     {
@@ -87,11 +95,13 @@ __global__
 							  unsigned int *d_Out,
 							  const size_t numElems)
 {
-	int myId =
-        blockIdx.y * blockDim.y * gridDim.x +
-        blockIdx.x * blockDim.x * blockDim.y +
-        threadIdx.y * blockDim.x +
-        threadIdx.x;
+	int threadsPerBlock = blockDim.x * blockDim.y;
+
+    int blockId = blockIdx.x + (blockIdx.y * gridDim.x);
+
+    int threadId = threadIdx.x + (threadIdx.y * blockDim.x);
+
+    int myId = (blockId * threadsPerBlock) + threadId;
 
     if (myId < numElems)
     {
@@ -114,11 +124,13 @@ __global__
         const unsigned int index,
         const size_t numElems)
 {
-    int myId =
-        blockIdx.y * blockDim.y * gridDim.x +
-        blockIdx.x * blockDim.x * blockDim.y +
-        threadIdx.y * blockDim.x +
-        threadIdx.x;
+    int threadsPerBlock = blockDim.x * blockDim.y;
+
+    int blockId = blockIdx.x + (blockIdx.y * gridDim.x);
+
+    int threadId = threadIdx.x + (threadIdx.y * blockDim.x);
+
+    int myId = (blockId * threadsPerBlock) + threadId;
 
     if (myId < numElems)
     {
@@ -139,8 +151,8 @@ void your_sort(unsigned int* const d_inputVals,
                unsigned int* const d_outputPos,
                const size_t numElems)
 {
-    
-#if defined(USE_REFERENCE_CALCULATION)
+
+#if defined(USE_REFERENCE_CALCULATION) || !defined(GATHER_ON_GPU)
 
     unsigned int *h_inputVals =
 		new unsigned int[sizeof(unsigned int) * numElems];
@@ -153,7 +165,7 @@ void your_sort(unsigned int* const d_inputVals,
     
     unsigned int *h_outputPos =
 		new unsigned int[sizeof(unsigned int) * numElems];
-    
+
     checkCudaErrors(
 		cudaMemcpy(
 			h_inputVals,
@@ -167,6 +179,20 @@ void your_sort(unsigned int* const d_inputVals,
 			d_inputPos,
             sizeof(unsigned int) * numElems,
 			cudaMemcpyDeviceToHost));
+
+    memset(
+        h_outputVals,
+        0x0,
+        sizeof(unsigned int) * numElems);
+
+    memset(
+        h_outputPos,
+        0x0,
+        sizeof(unsigned int) * numElems);
+
+#endif
+
+#if defined(USE_REFERENCE_CALCULATION)
     
     reference_calculation(
         h_inputVals,
@@ -175,7 +201,23 @@ void your_sort(unsigned int* const d_inputVals,
         h_outputPos,
         numElems);
 
-  const int numBits = 16;
+    checkCudaErrors(
+		cudaMemcpy(
+			d_outputVals,
+			h_outputVals,
+			sizeof(unsigned int) * numElems,
+			cudaMemcpyHostToDevice));
+    
+    checkCudaErrors(
+		cudaMemcpy(
+			d_outputPos,
+			h_outputPos,
+			sizeof(unsigned int) * numElems,
+			cudaMemcpyHostToDevice));
+
+#else
+
+  const int numBits = 8;
   const int numBins = 1 << numBits;
     
   unsigned int *binHistogram = new unsigned int[numBins];
@@ -215,6 +257,12 @@ void your_sort(unsigned int* const d_inputVals,
     checkCudaErrors(
         cudaMalloc(
             &d_Scan,
+            sizeof(unsigned int) *  numBins));
+
+    checkCudaErrors(
+        cudaMemset(
+            d_Scan,
+            0x0,
             sizeof(unsigned int) *  numBins));
 
     // Block size (i.e., number of threads per block)
@@ -286,6 +334,25 @@ void your_sort(unsigned int* const d_inputVals,
 			d_binHisto,
 			sizeof(unsigned int) * numBins,
 			cudaMemcpyDeviceToHost));
+
+#elif defined(HISTOGRAM_ON_GPU_DBG)
+
+    unsigned int *h_binHisto_dbg =
+        new unsigned int[numBins];
+
+    memset(
+        h_binHisto_dbg,
+        0x0,
+        sizeof(unsigned int) * numBins);
+
+    checkCudaErrors(
+		cudaMemcpy(
+			h_binHisto_dbg,
+			d_binHisto,
+			sizeof(unsigned int) * numBins,
+			cudaMemcpyDeviceToHost));
+
+    delete []h_binHisto_dbg;
 
 #endif
 
@@ -403,7 +470,11 @@ void your_sort(unsigned int* const d_inputVals,
 			cudaMemcpyHostToDevice));
 
 #endif
-    
+
+#endif
+
+#if defined(USE_REFERENCE_CALCULATION) || !defined(GATHER_ON_GPU)
+
     delete []h_outputPos;
     
     delete []h_outputVals;
@@ -411,6 +482,8 @@ void your_sort(unsigned int* const d_inputVals,
     delete []h_inputPos;
     
     delete []h_inputVals;
+
+#endif
 
 #if defined (HISTOGRAM_ON_GPU)
 
@@ -421,8 +494,6 @@ void your_sort(unsigned int* const d_inputVals,
 #if defined (SCAN_ON_GPU)
 
     checkCudaErrors(cudaFree(d_Scan));
-
-#endif
 
 #endif
 
