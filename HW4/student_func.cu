@@ -64,6 +64,9 @@
 #define BLOCK_SIZE_MAX_X 20
 #define BLOCK_SIZE_MAX_Y 20
 
+#define BLOCK_SIZE_SCAN_MAX 512					// i.e. maximum number of threads per block (x dimension)
+                                                // for a scan operation
+
 __global__
     void simple_histo_binary(
         unsigned int *d_Bins,
@@ -109,6 +112,167 @@ __global__
 		{
 			d_Out[myId] +=
 				d_In[i];
+		}
+	}
+}
+
+// Exclusive Scan (Blelloch)
+
+__global__
+	void scanKernelExclusive(const unsigned int *d_In,
+							 unsigned int *d_Out,
+							 size_t size,
+							 size_t offset,
+							 bool isLastCall)
+{
+	// Stores boundary values to account for sizes that are not powers of 2
+	__shared__ unsigned int _boundaryValueCurrent;
+	__shared__ unsigned int _finalAdd;
+	unsigned int _finalRemember;
+	__shared__ unsigned int _sharedVals[BLOCK_SIZE_SCAN_MAX];
+
+	int myId = 
+		threadIdx.x;
+
+	if (myId == 0)
+	{
+		_boundaryValueCurrent = 0;
+
+		_finalRemember =
+			d_In[offset + size - 1];
+
+		if (offset > 0)
+		{
+			_finalAdd =
+				d_Out[0] + d_Out[offset - 1];
+		}
+	}
+
+	__syncthreads();
+
+	if (myId < size)
+	{
+		// Initial data fetch
+		_sharedVals[myId] =
+			d_In[myId + offset];
+
+		__syncthreads();
+
+		// Used to track how many steps are left by right-shifting its value
+		// (i.e. implicitely calculating log2 of the size)
+		size_t _stepsLeft =
+			size;
+
+		// Which neighbor to the left has to be added?
+		unsigned int _neighbor =
+			1;
+
+		// Is it my turn to add?
+		unsigned int _selfMask =
+			1;
+
+		// Step 1: Adding neighbors
+
+		while (_stepsLeft)
+		{
+			if ((_selfMask & myId) == _selfMask)
+			{
+				_sharedVals[myId] +=
+					_sharedVals[myId - _neighbor];
+			}
+
+			_stepsLeft >>= 1;
+			_neighbor <<= 1;
+			_selfMask <<= 1;
+			_selfMask++;
+
+			__syncthreads();
+		}
+
+		// Step 2: Down-sweep and adding neighbors again
+
+		// Adjustment to properly start
+		_selfMask--;
+		_selfMask >>= 1;
+		_neighbor >>= 1;
+		_stepsLeft = size;
+
+		while (_stepsLeft)
+		{
+			bool _fillInBoundaryValue =
+				true;
+
+			if ((_selfMask & myId) == _selfMask)
+			{
+				unsigned int _tmp =
+					_sharedVals[myId];
+
+				_sharedVals[myId] +=
+					_sharedVals[myId - _neighbor];
+
+				_sharedVals[myId - _neighbor] =
+					_tmp;
+
+				_fillInBoundaryValue =
+					false;
+			}
+
+			__syncthreads();
+
+			// Cross-sweep of boundary value
+
+			unsigned int _selfMaskCrossSweep =
+				_selfMask >> 1;
+
+			if (_fillInBoundaryValue)
+			{
+				if (((_selfMask & myId) ^ _selfMaskCrossSweep) == 0)
+				{
+					if ((myId + _neighbor) >= size)
+					{
+						unsigned int _boundaryValueTmp =
+							_boundaryValueCurrent + _sharedVals[(myId)];
+
+						_sharedVals[myId] =
+							_boundaryValueCurrent;
+
+						_boundaryValueCurrent =
+							_boundaryValueTmp;
+					}
+				}
+			}
+			
+			_selfMask--;
+			_selfMask >>= 1;
+			_neighbor >>= 1;
+			_stepsLeft >>= 1;
+
+			__syncthreads();
+		}
+
+		if (offset > 0)
+		{
+			_sharedVals[myId] +=
+				_finalAdd;
+		}
+
+		__syncthreads();
+
+		d_Out[myId + offset] =
+				_sharedVals[myId];
+
+		if (myId == 0)
+		{
+			if (isLastCall)
+			{
+				d_Out[0] =
+					0;
+			}
+			else
+			{
+				d_Out[0] =
+					_finalRemember;
+			}
 		}
 	}
 }
@@ -267,15 +431,12 @@ void your_sort(unsigned int* const d_inputVals,
 
     // Block size (i.e., number of threads per block)
 	dim3 blockSizeScan(
-        BLOCK_SIZE_MAX_X,
-        BLOCK_SIZE_MAX_Y,
+        BLOCK_SIZE_SCAN_MAX,
+        1,
         1);
 
-    int gridSizeScanX =
-        (ceil(sqrt((double)numBins)) - 1) / BLOCK_SIZE_MAX_X + 1;
-
-    int gridSizeScanY =
-        (ceil(sqrt((double)numBins)) - 1) / BLOCK_SIZE_MAX_Y + 1;
+    int gridSizeScanX = 1;
+	int gridSizeScanY = 1;
     
     dim3 gridSizeScan(
         gridSizeScanX,
@@ -374,10 +535,12 @@ void your_sort(unsigned int* const d_inputVals,
             0x0,
             sizeof(unsigned int) *  numBins));
 
-    scan_naive_exclusive<<<gridSizeScan, blockSizeScan>>>(
+    scanKernelExclusive<<<gridSizeScan, blockSizeScan>>>(
         d_binHisto,
         d_Scan,
-        numBins);
+        numBins,
+        0,
+        true);
 
     checkCudaErrors(
 		cudaMemcpy(
