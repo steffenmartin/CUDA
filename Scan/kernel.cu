@@ -10,7 +10,8 @@
 
 // #define ADD
 // #define SCAN
-#define SCAN_EXCLUSIVE
+// #define SCAN_EXCLUSIVE
+#define SCAN_EXCLUSIVE_2
 
 #if defined(ADD)
 
@@ -84,9 +85,13 @@ __global__ void scanKernelInclusive(int *c, const int *a, size_t size, size_t of
 
 #endif
 
-#if defined(SCAN_EXCLUSIVE)
+#if defined(SCAN_EXCLUSIVE) || defined(SCAN_EXCLUSIVE_2)
 
 cudaError_t scanExclusiveWithCuda(const unsigned int *h_In, unsigned int *h_Out, size_t size);
+
+#endif
+
+#if defined(SCAN_EXCLUSIVE)
 
 // Exclusive Scan (Blelloch)
 
@@ -251,6 +256,368 @@ __global__
 
 #endif
 
+#if defined(SCAN_EXCLUSIVE_2)
+
+#define BLOCK_SIZE_MAX_X 2
+#define BLOCK_SIZE_MAX_Y 2
+
+// Exclusive Scan (Blelloch)
+
+__global__
+	void scanKernelExclusive_Phase1(const unsigned int *d_In,
+							        unsigned int *d_Out,
+							        size_t size)
+{
+	// Stores boundary values to account for sizes that are not powers of 2
+	__shared__ unsigned int _boundaryValueCurrent;
+	unsigned int _finalRemember;
+	__shared__ unsigned int _sharedVals[MAX_THREAD_BLOCK_SIZE];
+
+    int threadsPerBlock = blockDim.x * blockDim.y;
+
+    int blockId = blockIdx.x + (blockIdx.y * gridDim.x);
+
+    int threadId = threadIdx.x + (threadIdx.y * blockDim.x);
+
+    int myId = (blockId * threadsPerBlock) + threadId;
+
+    unsigned int _offset =
+        blockId * threadsPerBlock;
+
+    unsigned int _size =
+        threadsPerBlock;
+
+    if (threadId == 0)
+	{
+		_boundaryValueCurrent = 0;
+
+        _size =
+            _offset + _size > size ?
+                size - _offset :
+                _size;
+
+		_finalRemember =
+			d_In[_offset + _size - 1];
+    }
+
+    __syncthreads();
+
+	if (myId < size)
+	{
+        // Initial data fetch
+		_sharedVals[threadId] =
+			d_In[myId];
+
+		__syncthreads();
+
+        // Used to track how many steps are left by right-shifting its value
+		// (i.e. implicitely calculating log2 of the size)
+		size_t _stepsLeft =
+			_size;
+
+		// Which neighbor to the left has to be added?
+		unsigned int _neighbor =
+			1;
+
+		// Is it my turn to add?
+		unsigned int _selfMask =
+			1;
+
+        // Step 1: Adding neighbors
+
+		while (_stepsLeft)
+		{
+			if ((_selfMask & threadId) == _selfMask)
+			{
+				_sharedVals[threadId] +=
+					_sharedVals[threadId - _neighbor];
+			}
+
+			_stepsLeft >>= 1;
+			_neighbor <<= 1;
+			_selfMask <<= 1;
+			_selfMask++;
+
+			__syncthreads();
+		}
+
+        // Step 2: Down-sweep and adding neighbors again
+
+		// Adjustment to properly start
+		_selfMask--;
+		_selfMask >>= 1;
+		_neighbor >>= 1;
+		_stepsLeft = _size;
+
+		while (_stepsLeft)
+		{
+			bool _fillInBoundaryValue =
+				true;
+
+			if ((_selfMask & threadId) == _selfMask)
+			{
+				unsigned int _tmp =
+					_sharedVals[threadId];
+
+				_sharedVals[threadId] +=
+					_sharedVals[threadId - _neighbor];
+
+				_sharedVals[threadId - _neighbor] =
+					_tmp;
+
+				_fillInBoundaryValue =
+					false;
+			}
+
+			__syncthreads();
+
+			// Cross-sweep of boundary value
+
+			unsigned int _selfMaskCrossSweep =
+				_selfMask >> 1;
+
+			if (_fillInBoundaryValue)
+			{
+				if (((_selfMask & threadId) ^ _selfMaskCrossSweep) == 0)
+				{
+					if ((threadId + _neighbor) >= _size)
+					{
+						unsigned int _boundaryValueTmp =
+							_boundaryValueCurrent + _sharedVals[(threadId)];
+
+						_sharedVals[threadId] =
+							_boundaryValueCurrent;
+
+						_boundaryValueCurrent =
+							_boundaryValueTmp;
+					}
+				}
+			}
+
+			_selfMask--;
+			_selfMask >>= 1;
+			_neighbor >>= 1;
+			_stepsLeft >>= 1;
+
+			__syncthreads();
+		}
+
+        d_Out[myId] =
+				_sharedVals[threadId];
+
+        if (threadId == 0)
+		{
+			d_Out[_offset] =
+				_finalRemember;
+		}
+    }
+}
+
+__global__
+	void scanKernelExclusive_Phase2(const unsigned int *d_In,
+							        unsigned int *d_Out,
+							        size_t size)
+{
+    // Stores boundary values to account for sizes that are not powers of 2
+	__shared__ unsigned int _boundaryValueCurrent;
+	__shared__ unsigned int _sharedVals[MAX_THREAD_BLOCK_SIZE];
+
+    int threadsPerBlock = blockDim.x * blockDim.y;
+
+    int blockId = blockIdx.x + (blockIdx.y * gridDim.x);
+
+    int threadId = threadIdx.x + (threadIdx.y * blockDim.x);
+
+    int myId = (blockId * threadsPerBlock) + threadId;
+
+    myId *=
+        threadsPerBlock;
+
+    if (myId < size)
+	{
+        // Initial data fetch
+		_sharedVals[threadId] =
+			d_In[myId];
+
+		__syncthreads();
+    }
+
+    if ((myId < size) &&
+        (myId > 0))
+    {
+        unsigned int _tmp =
+            _sharedVals[threadId - 1];
+
+        __syncthreads();
+
+        _sharedVals[threadId] =
+            d_In[myId - 1] + _tmp;
+    }
+
+    __syncthreads();
+
+    if (myId == 0)
+	{
+        _sharedVals[0] = 0;
+        _boundaryValueCurrent = 0;
+    }
+
+    __syncthreads();
+
+    unsigned int _size =
+        (size - 1) / threadsPerBlock + 1;
+
+	if (myId < size)
+	{
+        // Used to track how many steps are left by right-shifting its value
+		// (i.e. implicitely calculating log2 of the size)
+		size_t _stepsLeft =
+			_size;
+
+		// Which neighbor to the left has to be added?
+		unsigned int _neighbor =
+			1;
+
+		// Is it my turn to add?
+		unsigned int _selfMask =
+			1;
+
+        // Step 1: Adding neighbors
+
+		while (_stepsLeft)
+		{
+			if ((_selfMask & threadId) == _selfMask)
+			{
+				_sharedVals[threadId] +=
+					_sharedVals[threadId - _neighbor];
+			}
+
+			_stepsLeft >>= 1;
+			_neighbor <<= 1;
+			_selfMask <<= 1;
+			_selfMask++;
+
+			__syncthreads();
+		}
+
+        // Step 2: Down-sweep and adding neighbors again
+
+		// Adjustment to properly start
+		_selfMask--;
+		_selfMask >>= 1;
+		_neighbor >>= 1;
+		_stepsLeft = _size;
+
+		while (_stepsLeft)
+		{
+			bool _fillInBoundaryValue =
+				true;
+
+			if ((_selfMask & threadId) == _selfMask)
+			{
+				unsigned int _tmp =
+					_sharedVals[threadId];
+
+				_sharedVals[threadId] +=
+					_sharedVals[threadId - _neighbor];
+
+				_sharedVals[threadId - _neighbor] =
+					_tmp;
+
+				_fillInBoundaryValue =
+					false;
+			}
+
+			__syncthreads();
+
+			// Cross-sweep of boundary value
+
+			unsigned int _selfMaskCrossSweep =
+				_selfMask >> 1;
+
+			if (_fillInBoundaryValue)
+			{
+				if (((_selfMask & threadId) ^ _selfMaskCrossSweep) == 0)
+				{
+					if ((threadId + _neighbor) >= _size)
+					{
+						unsigned int _boundaryValueTmp =
+							_boundaryValueCurrent + _sharedVals[(threadId)];
+
+						_sharedVals[threadId] =
+							_boundaryValueCurrent;
+
+						_boundaryValueCurrent =
+							_boundaryValueTmp;
+					}
+				}
+			}
+
+			_selfMask--;
+			_selfMask >>= 1;
+			_neighbor >>= 1;
+			_stepsLeft >>= 1;
+
+			__syncthreads();
+		}
+
+        // Inclusive scan
+        if ((threadId + 1) < _size)
+        {
+            d_Out[myId] =
+                _sharedVals[threadId + 1];
+        }
+        else
+        {
+            d_Out[myId] =
+                _boundaryValueCurrent;
+        }
+    }
+}
+
+__global__
+	void scanKernelExclusive_Phase3(const unsigned int *d_In,
+							        unsigned int *d_Out,
+							        size_t size,
+                                    unsigned int *total)
+{
+    int threadsPerBlock = blockDim.x * blockDim.y;
+
+    int blockId = blockIdx.x + (blockIdx.y * gridDim.x);
+
+    int threadId = threadIdx.x + (threadIdx.y * blockDim.x);
+
+    int myId = (blockId * threadsPerBlock) + threadId;
+
+    unsigned int _offset =
+        blockId * threadsPerBlock;
+
+    __shared__ unsigned int _finalAdd;
+
+    if (threadId == 0)
+	{
+        _finalAdd =
+            d_In[_offset];
+    }
+
+    __syncthreads();
+
+    if ((myId < size) &&
+        (threadId > 0))
+	{
+        d_Out[myId] +=
+            _finalAdd;
+    }
+
+    if ((myId == (size - 1)) &&
+		(total))
+	{
+		*total =
+			d_Out[myId];
+	}
+}
+#endif
+
 int main()
 {
     const int arraySize = 13;
@@ -315,7 +682,7 @@ int main()
 
 #endif
 
-#if defined(SCAN_EXCLUSIVE)
+#if defined(SCAN_EXCLUSIVE) || defined(SCAN_EXCLUSIVE_2)
 
 	// Timing
 	{
@@ -507,12 +874,14 @@ Error:
 
 #endif
 
-#if defined(SCAN_EXCLUSIVE)
+#if defined(SCAN_EXCLUSIVE) || defined(SCAN_EXCLUSIVE_2)
 
 cudaError_t scanExclusiveWithCuda(const unsigned int *h_In, unsigned int *h_Out, size_t size)
 {
 	unsigned int *d_In = 0;
 	unsigned int *d_Out = 0;
+
+#if defined(SCAN_EXCLUSIVE)
 
     cudaError_t cudaStatus =
 		size < MAX_THREAD_BLOCK_SIZE ?
@@ -523,6 +892,13 @@ cudaError_t scanExclusiveWithCuda(const unsigned int *h_In, unsigned int *h_Out,
 		fprintf(stderr, "Size cannot exceed maximum thread block size of %d", MAX_THREAD_BLOCK_SIZE);
         goto Error;
 	}
+
+#elif defined(SCAN_EXCLUSIVE_2)
+
+    cudaError_t cudaStatus =
+        cudaSuccess;
+
+#endif
 
 	// Choose which GPU to run on, change this on a multi-GPU system.
     cudaStatus = cudaSetDevice(0);
@@ -551,9 +927,52 @@ cudaError_t scanExclusiveWithCuda(const unsigned int *h_In, unsigned int *h_Out,
         goto Error;
     }
 
+#if defined(SCAN_EXCLUSIVE)
+
 	 // Launch a kernel on the GPU with one thread for each element.
 	scanKernelExclusive<<<1, size>>>(d_In, d_Out, size >> 1, 0, false);
 	scanKernelExclusive<<<1, size>>>(d_In, d_Out, size - (size >> 1), size >> 1, true);
+
+#elif defined(SCAN_EXCLUSIVE_2)
+
+    // Block size (i.e., number of threads per block)
+	dim3 blockSize(
+        BLOCK_SIZE_MAX_X,
+        BLOCK_SIZE_MAX_Y,
+        1);
+
+    int gridSizeX =
+        (ceil(sqrt((double)size)) - 1) / BLOCK_SIZE_MAX_X + 1;
+
+    int gridSizeY =
+        (ceil(sqrt((double)size)) - 1) / BLOCK_SIZE_MAX_Y + 1;
+    
+    dim3 gridSize(
+        gridSizeX,
+        gridSizeY,
+        1);
+
+    scanKernelExclusive_Phase1<<<gridSize, blockSize>>>(d_In, d_Out, size);
+
+    // Copy output vector from GPU buffer to host memory.
+    cudaStatus = cudaMemcpy(h_Out, d_Out, size * sizeof(unsigned int), cudaMemcpyDeviceToHost);
+    if (cudaStatus != cudaSuccess) {
+        fprintf(stderr, "cudaMemcpy failed!");
+        goto Error;
+    }
+
+    scanKernelExclusive_Phase2<<<gridSize, blockSize>>>(d_Out, d_Out, size);
+
+    // Copy output vector from GPU buffer to host memory.
+    cudaStatus = cudaMemcpy(h_Out, d_Out, size * sizeof(unsigned int), cudaMemcpyDeviceToHost);
+    if (cudaStatus != cudaSuccess) {
+        fprintf(stderr, "cudaMemcpy failed!");
+        goto Error;
+    }
+
+    scanKernelExclusive_Phase3<<<gridSize, blockSize>>>(d_Out, d_Out, size, 0x0);
+
+#endif
 
     // Copy output vector from GPU buffer to host memory.
     cudaStatus = cudaMemcpy(h_Out, d_Out, size * sizeof(unsigned int), cudaMemcpyDeviceToHost);
