@@ -221,7 +221,7 @@ __global__
 				 (isLastCall))
 		{
 			*total =
-				d_Out[myId + offset];
+				_sharedVals[myId];
 		}
 	}
 }
