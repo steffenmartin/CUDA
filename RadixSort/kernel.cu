@@ -216,8 +216,9 @@ __global__
 					_finalRemember;
 			}
 		}
-		else if (((myId + offset) == (size - 1)) &&
-				 (total))
+		else if ((myId == size - 1) &&
+				 (total) &&
+				 (isLastCall))
 		{
 			*total =
 				d_Out[myId + offset];
