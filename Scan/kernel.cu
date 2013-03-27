@@ -287,14 +287,14 @@ __global__
     unsigned int _size =
         threadsPerBlock;
 
+	_size =
+        _offset + _size > size ?
+            size - _offset :
+            _size;
+
     if (threadId == 0)
 	{
 		_boundaryValueCurrent = 0;
-
-        _size =
-            _offset + _size > size ?
-                size - _offset :
-                _size;
 
 		_finalRemember =
 			d_In[_offset + _size - 1];
@@ -416,22 +416,19 @@ __global__
 __global__
 	void scanKernelExclusive_Phase2(const unsigned int *d_In,
 							        unsigned int *d_Out,
-							        size_t size)
+							        size_t size,
+									unsigned int origBlockSize)
 {
     // Stores boundary values to account for sizes that are not powers of 2
 	__shared__ unsigned int _boundaryValueCurrent;
 	__shared__ unsigned int _sharedVals[MAX_THREAD_BLOCK_SIZE];
 
-    int threadsPerBlock = blockDim.x * blockDim.y;
-
-    int blockId = blockIdx.x + (blockIdx.y * gridDim.x);
-
     int threadId = threadIdx.x + (threadIdx.y * blockDim.x);
 
-    int myId = (blockId * threadsPerBlock) + threadId;
+	int myId = threadId;
 
     myId *=
-        threadsPerBlock;
+        origBlockSize;
 
     if (myId < size)
 	{
@@ -448,13 +445,15 @@ __global__
         unsigned int _tmp =
             _sharedVals[threadId - 1];
 
-        __syncthreads();
+	__syncthreads();
 
         _sharedVals[threadId] =
-            d_In[myId - 1] + _tmp;
+             d_In[myId - 1] + _tmp;
+
+        __syncthreads();
     }
 
-    __syncthreads();
+	__syncthreads();
 
     if (myId == 0)
 	{
@@ -465,7 +464,7 @@ __global__
     __syncthreads();
 
     unsigned int _size =
-        (size - 1) / threadsPerBlock + 1;
+        (size - 1) / origBlockSize + 1;
 
 	if (myId < size)
 	{
@@ -620,9 +619,9 @@ __global__
 
 int main()
 {
-    const int arraySize = 13;
-    const unsigned int a[arraySize] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13 };
-    const unsigned int b[arraySize] = { 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130 };
+    const int arraySize = 23;
+    const unsigned int a[arraySize] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23 };
+    const unsigned int b[arraySize] = { 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200, 210, 220, 230 };
     unsigned int c[arraySize] = { 0 };
 
 	cudaError_t cudaStatus =
@@ -930,8 +929,31 @@ cudaError_t scanExclusiveWithCuda(const unsigned int *h_In, unsigned int *h_Out,
 #if defined(SCAN_EXCLUSIVE)
 
 	 // Launch a kernel on the GPU with one thread for each element.
-	scanKernelExclusive<<<1, size>>>(d_In, d_Out, size >> 1, 0, false);
-	scanKernelExclusive<<<1, size>>>(d_In, d_Out, size - (size >> 1), size >> 1, true);
+	// scanKernelExclusive<<<1, size>>>(d_In, d_Out, size, 0, true);
+	unsigned int _size =
+		size;
+		// size >> 1;
+	unsigned int _offset =
+		0;
+
+	scanKernelExclusive<<<1, size>>>(d_In, d_Out, _size, _offset, _size >= size);
+
+	if (_size < size)
+	{
+		// Copy output vector from GPU buffer to host memory.
+		cudaStatus = cudaMemcpy(h_Out, d_Out, size * sizeof(unsigned int), cudaMemcpyDeviceToHost);
+		if (cudaStatus != cudaSuccess) {
+			fprintf(stderr, "cudaMemcpy failed!");
+			goto Error;
+		}
+
+		_size =
+			size - (_size);
+		_offset =
+			_size;
+
+		scanKernelExclusive<<<1, size>>>(d_In, d_Out, _size, _offset >> 1, true);
+	}
 
 #elif defined(SCAN_EXCLUSIVE_2)
 
@@ -961,7 +983,7 @@ cudaError_t scanExclusiveWithCuda(const unsigned int *h_In, unsigned int *h_Out,
         goto Error;
     }
 
-    scanKernelExclusive_Phase2<<<gridSize, blockSize>>>(d_Out, d_Out, size);
+    scanKernelExclusive_Phase2<<<1, gridSize>>>(d_Out, d_Out, size, blockSize.x * blockSize.y);
 
     // Copy output vector from GPU buffer to host memory.
     cudaStatus = cudaMemcpy(h_Out, d_Out, size * sizeof(unsigned int), cudaMemcpyDeviceToHost);
