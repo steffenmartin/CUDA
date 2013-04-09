@@ -13,6 +13,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Scan", "Scan\Scan.vcxproj",
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RadixSort", "RadixSort\RadixSort.vcxproj", "{7A851EF5-396D-4221-B88E-982C19F04B76}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Transpose", "Transpose\Transpose.vcxproj", "{E8DC0ABD-CBC3-40FB-B5B7-2051982D462B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -65,6 +67,12 @@ Global
 		{7A851EF5-396D-4221-B88E-982C19F04B76}.Release|Win32.ActiveCfg = Release|Win32
 		{7A851EF5-396D-4221-B88E-982C19F04B76}.Release|Win32.Build.0 = Release|Win32
 		{7A851EF5-396D-4221-B88E-982C19F04B76}.Release|x64.ActiveCfg = Release|Win32
+		{E8DC0ABD-CBC3-40FB-B5B7-2051982D462B}.Debug|Win32.ActiveCfg = Debug|Win32
+		{E8DC0ABD-CBC3-40FB-B5B7-2051982D462B}.Debug|Win32.Build.0 = Debug|Win32
+		{E8DC0ABD-CBC3-40FB-B5B7-2051982D462B}.Debug|x64.ActiveCfg = Debug|Win32
+		{E8DC0ABD-CBC3-40FB-B5B7-2051982D462B}.Release|Win32.ActiveCfg = Release|Win32
+		{E8DC0ABD-CBC3-40FB-B5B7-2051982D462B}.Release|Win32.Build.0 = Release|Win32
+		{E8DC0ABD-CBC3-40FB-B5B7-2051982D462B}.Release|x64.ActiveCfg = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
