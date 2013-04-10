@@ -15,6 +15,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RadixSort", "RadixSort\Radi
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Transpose", "Transpose\Transpose.vcxproj", "{E8DC0ABD-CBC3-40FB-B5B7-2051982D462B}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "HW5", "HW5\HW5.vcxproj", "{02CBB244-E11B-4A18-87AE-A3B5D76B0543}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -73,6 +75,14 @@ Global
 		{E8DC0ABD-CBC3-40FB-B5B7-2051982D462B}.Release|Win32.ActiveCfg = Release|Win32
 		{E8DC0ABD-CBC3-40FB-B5B7-2051982D462B}.Release|Win32.Build.0 = Release|Win32
 		{E8DC0ABD-CBC3-40FB-B5B7-2051982D462B}.Release|x64.ActiveCfg = Release|Win32
+		{02CBB244-E11B-4A18-87AE-A3B5D76B0543}.Debug|Win32.ActiveCfg = Debug|Win32
+		{02CBB244-E11B-4A18-87AE-A3B5D76B0543}.Debug|Win32.Build.0 = Debug|Win32
+		{02CBB244-E11B-4A18-87AE-A3B5D76B0543}.Debug|x64.ActiveCfg = Debug|x64
+		{02CBB244-E11B-4A18-87AE-A3B5D76B0543}.Debug|x64.Build.0 = Debug|x64
+		{02CBB244-E11B-4A18-87AE-A3B5D76B0543}.Release|Win32.ActiveCfg = Release|Win32
+		{02CBB244-E11B-4A18-87AE-A3B5D76B0543}.Release|Win32.Build.0 = Release|Win32
+		{02CBB244-E11B-4A18-87AE-A3B5D76B0543}.Release|x64.ActiveCfg = Release|x64
+		{02CBB244-E11B-4A18-87AE-A3B5D76B0543}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
