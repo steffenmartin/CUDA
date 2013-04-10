@@ -152,6 +152,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\cs344\HW3\compare.cpp" />
     <ClCompile Include="..\..\cs344\HW3\loadSaveImage.cpp" />
     <ClCompile Include="..\..\cs344\HW3\main.cpp" />
   </ItemGroup>
