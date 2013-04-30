@@ -17,8 +17,6 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Transpose", "Transpose\Tran
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "HW5", "HW5\HW5.vcxproj", "{02CBB244-E11B-4A18-87AE-A3B5D76B0543}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Histogram", "Histogram\Histogram.vcxproj", "{75311C22-BE7C-4CED-8B34-32A8E59BDCB8}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -85,12 +83,6 @@ Global
 		{02CBB244-E11B-4A18-87AE-A3B5D76B0543}.Release|Win32.Build.0 = Release|Win32
 		{02CBB244-E11B-4A18-87AE-A3B5D76B0543}.Release|x64.ActiveCfg = Release|x64
 		{02CBB244-E11B-4A18-87AE-A3B5D76B0543}.Release|x64.Build.0 = Release|x64
-		{75311C22-BE7C-4CED-8B34-32A8E59BDCB8}.Debug|Win32.ActiveCfg = Debug|Win32
-		{75311C22-BE7C-4CED-8B34-32A8E59BDCB8}.Debug|Win32.Build.0 = Debug|Win32
-		{75311C22-BE7C-4CED-8B34-32A8E59BDCB8}.Debug|x64.ActiveCfg = Debug|Win32
-		{75311C22-BE7C-4CED-8B34-32A8E59BDCB8}.Release|Win32.ActiveCfg = Release|Win32
-		{75311C22-BE7C-4CED-8B34-32A8E59BDCB8}.Release|Win32.Build.0 = Release|Win32
-		{75311C22-BE7C-4CED-8B34-32A8E59BDCB8}.Release|x64.ActiveCfg = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
