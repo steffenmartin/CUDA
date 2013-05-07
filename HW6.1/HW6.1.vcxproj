@@ -11,8 +11,8 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{DFB5209B-222D-425F-8992-52957BB2C59E}</ProjectGuid>
-    <RootNamespace>HW4</RootNamespace>
+    <ProjectGuid>{E0892C34-4D90-48E9-BDB7-738FC032EE37}</ProjectGuid>
+    <RootNamespace>HW6.1</RootNamespace>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -48,7 +48,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>$(OPENCV_PATH)\include;$(OPENCV_PATH)\modules\core\include;$(OPENCV_PATH)\modules\highgui\include;$(OPENCV_PATH)\modules\flann\include;$(OPENCV_PATH)\modules\imgproc\include;$(OPENCV_PATH)\modules\photo\include;$(OPENCV_PATH)\modules\video\include;$(OPENCV_PATH)\modules\features2d\include;$(OPENCV_PATH)\modules\objdetect\include;$(OPENCV_PATH)\modules\calib3d\include;$(OPENCV_PATH)\modules\ml\include;$(OPENCV_PATH)\modules\contrib\include;..\..\cs344\HW4;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(OPENCV_PATH)\include;$(OPENCV_PATH)\modules\core\include;$(OPENCV_PATH)\modules\highgui\include;$(OPENCV_PATH)\modules\flann\include;$(OPENCV_PATH)\modules\imgproc\include;$(OPENCV_PATH)\modules\photo\include;$(OPENCV_PATH)\modules\video\include;$(OPENCV_PATH)\modules\features2d\include;$(OPENCV_PATH)\modules\objdetect\include;$(OPENCV_PATH)\modules\calib3d\include;$(OPENCV_PATH)\modules\ml\include;$(OPENCV_PATH)\modules\contrib\include;..\..\cs344\HW6;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -61,7 +61,7 @@
 copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     </PostBuildEvent>
     <CudaCompile>
-      <CodeGeneration>compute_11,sm_11</CodeGeneration>
+      <CodeGeneration>compute_12,sm_12</CodeGeneration>
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -84,16 +84,17 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\cs344\HW4\loadSaveImage.cpp" />
-    <ClCompile Include="..\..\cs344\HW4\main.cpp" />
+    <ClInclude Include="..\..\cs344\HW6\timer.h" />
+    <ClInclude Include="..\..\cs344\HW6\utils.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\cs344\HW4\loadSaveImage.h" />
-    <ClInclude Include="..\..\cs344\HW4\timer.h" />
-    <ClInclude Include="..\..\cs344\HW4\utils.h" />
+    <ClCompile Include="..\..\cs344\HW6\compare.cpp" />
+    <ClCompile Include="..\..\cs344\HW6\loadSaveImage.cpp" />
+    <ClCompile Include="..\..\cs344\HW6\main.cpp" />
+    <ClCompile Include="..\..\cs344\HW6\reference_calc.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <CudaCompile Include="..\..\cs344\HW4\HW4.cu" />
+    <CudaCompile Include="..\..\cs344\HW6\HW6.cu" />
     <CudaCompile Include="student_func.cu" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
