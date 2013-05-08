@@ -67,7 +67,71 @@
 #include "utils.h"
 #include <thrust/host_vector.h>
 
-#include "reference_calc.h"
+#include "reference_calc_custom.h"
+
+#define BLOCK_SIZE_CALC_MASK_MAX_X 22
+#define BLOCK_SIZE_CALC_MASK_MAX_Y 22
+
+#define ENABLE_DEBUG
+// #define ENABLE_STRICT_ERROR_CHECKING
+
+__global__
+	void calculateMaskKernel(
+		const uchar4 * const d_sourceImg,
+		const size_t numRowsSource,
+		const size_t numColsSource,
+		unsigned char* d_mask)
+{
+
+// #define MASK_KERNEL_USE_SHARED
+
+#if defined (MASK_KERNEL_USE_SHARED)
+
+	__shared__ uchar4 _shared[BLOCK_SIZE_CALC_MASK_MAX_X][BLOCK_SIZE_CALC_MASK_MAX_Y];
+
+#endif
+
+	int threadsPerBlock = blockDim.x * blockDim.y;
+
+    int blockId = blockIdx.x + (blockIdx.y * gridDim.x);
+
+    int threadId = threadIdx.x + (threadIdx.y * blockDim.x);
+
+    int myId = (blockId * threadsPerBlock) + threadId;
+
+	int numPixelTotal = numRowsSource * numColsSource;
+
+	if (myId < numPixelTotal)
+	{
+
+#if defined (MASK_KERNEL_USE_SHARED)
+
+		_shared[threadIdx.x][threadIdx.y] =
+			d_sourceImg[myId];
+
+		d_mask[myId] =
+			((_shared[threadIdx.x][threadIdx.y].x +
+			  _shared[threadIdx.x][threadIdx.y].y +
+			  _shared[threadIdx.x][threadIdx.y].z) < 3 * 255) ?
+			   1 :
+			   0;
+
+#else
+
+		uchar4 _local =
+			d_sourceImg[myId];
+
+		d_mask[myId] =
+			((_local.x +
+			  _local.y +
+			  _local.z) < 3 * 255) ?
+			   1 :
+			   0;
+
+#endif
+
+	}
+}
 
 void your_blend(const uchar4* const h_sourceImg,  //IN
                 const size_t numRowsSource, const size_t numColsSource,
@@ -80,6 +144,90 @@ void your_blend(const uchar4* const h_sourceImg,  //IN
      1) Compute a mask of the pixels from the source image to be copied
         The pixels that shouldn't be copied are completely white, they
         have R=255, G=255, B=255.  Any other pixels SHOULD be copied.
+		*/
+
+	size_t srcSize = numRowsSource * numColsSource;
+
+#if defined (ENABLE_DEBUG)
+
+	unsigned char* h_mask_dbg = new unsigned char[srcSize];
+
+	memset(h_mask_dbg, 0x0, srcSize * sizeof(unsigned char));
+
+#endif
+
+	unsigned char* d_mask;
+
+	// Allocate memory on the device for storing the mask data
+	checkCudaErrors(
+		cudaMalloc(
+			&d_mask,
+			srcSize * sizeof(unsigned char)));
+
+	uchar4* d_sourceImg;
+
+	// Allocate memory on the device for storing the source image data
+	checkCudaErrors(
+		cudaMalloc(
+			&d_sourceImg,
+			srcSize * sizeof(uchar4)));
+
+	// Copy source image data to device
+	checkCudaErrors(
+		cudaMemcpy(
+			d_sourceImg,
+			h_sourceImg,
+			srcSize * sizeof(uchar4),
+			cudaMemcpyHostToDevice));
+
+	int gridSizeX =
+		(numColsSource - 1) / BLOCK_SIZE_CALC_MASK_MAX_X + 1;
+	int gridSizeY =
+		(numRowsSource - 1) / BLOCK_SIZE_CALC_MASK_MAX_Y + 1;
+
+	// Set block size (i.e., number of threads per block)
+	const dim3 blockSize(
+		BLOCK_SIZE_CALC_MASK_MAX_X,
+		BLOCK_SIZE_CALC_MASK_MAX_Y,
+		1);
+
+	// Set grid size (i.e., number of blocks per kernel launch)
+	const dim3 gridSize(
+		gridSizeX,
+		gridSizeY,
+		1);
+
+	calculateMaskKernel<<<gridSize, blockSize>>>(
+		d_sourceImg,
+		numRowsSource,
+		numColsSource,
+		d_mask);
+
+#if defined (ENABLE_STRICT_ERROR_CHECKING)
+
+	cudaDeviceSynchronize(); checkCudaErrors(cudaGetLastError());
+
+#endif
+
+#if defined (ENABLE_DEBUG)
+
+	// Copy mask data to host (debug)
+	checkCudaErrors(
+		cudaMemcpy(
+			h_mask_dbg,
+			d_mask,
+			srcSize * sizeof(unsigned char),
+			cudaMemcpyDeviceToHost));
+
+#endif
+
+	cudaFree(
+		d_mask);
+
+	cudaFree(
+		d_sourceImg);
+
+	/*
 
      2) Compute the interior and border regions of the mask.  An interior
         pixel has all 4 neighbors also inside the mask.  A border pixel is
@@ -113,6 +261,12 @@ void your_blend(const uchar4* const h_sourceImg,  //IN
       to catch any errors that happened while executing the kernel.
   */
 
-	reference_calc(h_sourceImg, numRowsSource, numColsSource,
-                   h_destImg, h_blendedImg);
+#if defined (ENABLE_DEBUG)
+
+	reference_calc_custom(h_sourceImg, numRowsSource, numColsSource,
+                   h_destImg, h_blendedImg, h_mask_dbg);
+
+	delete []h_mask_dbg;
+
+#endif
 }

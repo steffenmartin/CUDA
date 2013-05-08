@@ -92,6 +92,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <ClCompile Include="..\..\cs344\HW6\loadSaveImage.cpp" />
     <ClCompile Include="..\..\cs344\HW6\main.cpp" />
     <ClCompile Include="..\..\cs344\HW6\reference_calc.cpp" />
+    <ClCompile Include="reference_calc_custom.cpp" />
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="..\..\cs344\HW6\HW6.cu" />
