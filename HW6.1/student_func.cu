@@ -80,41 +80,400 @@ __global__
 		const uchar4 * const d_sourceImg,
 		const size_t numRowsSource,
 		const size_t numColsSource,
-		unsigned char* d_mask)
-{
+		unsigned char* d_mask
 
-// #define MASK_KERNEL_USE_SHARED
+#if defined (ENABLE_DEBUG)
 
-#if defined (MASK_KERNEL_USE_SHARED)
-
-	__shared__ uchar4 _shared[BLOCK_SIZE_CALC_MASK_MAX_X][BLOCK_SIZE_CALC_MASK_MAX_Y];
+		, uchar4 * d_shared_for_debug
 
 #endif
 
-	int threadsPerBlock = blockDim.x * blockDim.y;
+		)
+{
 
-    int blockId = blockIdx.x + (blockIdx.y * gridDim.x);
-
-    int threadId = threadIdx.x + (threadIdx.y * blockDim.x);
-
-    int myId = (blockId * threadsPerBlock) + threadId;
-
-	int numPixelTotal = numRowsSource * numColsSource;
-
-	if (myId < numPixelTotal)
-	{
+#define MASK_KERNEL_USE_SHARED
 
 #if defined (MASK_KERNEL_USE_SHARED)
 
-		_shared[threadIdx.x][threadIdx.y] =
+	__shared__ uchar4 _shared[BLOCK_SIZE_CALC_MASK_MAX_X + 2][BLOCK_SIZE_CALC_MASK_MAX_Y + 2];
+
+#endif
+
+	const int2 threadPos2D =
+		make_int2(
+			blockIdx.x * blockDim.x + threadIdx.x,
+            blockIdx.y * blockDim.y + threadIdx.y);
+
+	if ( threadPos2D.x >= numColsSource ||
+		 threadPos2D.y >= numRowsSource )
+	{
+		return;
+	}
+	else
+	{
+		const int myId = 
+			threadPos2D.y * numColsSource +
+			threadPos2D.x;
+
+#if defined (MASK_KERNEL_USE_SHARED)
+
+		int myIdTop =
+			(threadPos2D.y - 1) * numColsSource +
+			threadPos2D.x;
+
+		int myIdBottom =
+			(threadPos2D.y + 1) * numColsSource +
+			threadPos2D.x;
+
+		int myIdLeft =
+			threadPos2D.y * numColsSource +
+			(threadPos2D.x - 1);
+
+		int myIdRight =
+			threadPos2D.y * numColsSource +
+			(threadPos2D.x + 1);
+
+		// Top left thread fetches top left neighbor (if available)
+		if ((threadIdx.x == 0) &&
+			(threadIdx.y == 0))
+		{
+			if ((threadPos2D.x > 0) &&
+				(threadPos2D.y > 0))
+			{
+				_shared[threadIdx.x][threadIdx.y] =
+					make_uchar4(
+						(myIdTop - 1),
+						(myIdTop - 1) >> 8,
+						(myIdTop - 1) >> 16,
+						(myIdTop - 1) >> 24);
+					// d_sourceImg[myIdTop - 1];
+			}
+			else
+			{
+				_shared[threadIdx.x][threadIdx.y] =
+					make_uchar4(
+						1,
+						2,
+						3,
+						4);
+			}
+		}
+
+		__syncthreads();
+
+		// Top row fetches all top neighbors
+		if (threadIdx.y == 0)
+		{
+			if (threadPos2D.y > 0)
+			{
+				_shared[threadIdx.x + 1][threadIdx.y] =
+					make_uchar4(
+						(myIdTop),
+						(myIdTop) >> 8,
+						(myIdTop) >> 16,
+						(myIdTop) >> 24);
+					// d_sourceImg[myIdTop];
+			}
+			else
+			{
+				_shared[threadIdx.x + 1][threadIdx.y] =
+					make_uchar4(
+						1,
+						2,
+						3,
+						4);
+			}
+		}
+
+		__syncthreads();
+
+		// Top right thread fetches top right neighbor (if available)
+		if (((threadIdx.x == (blockDim.x - 1)) ||
+			 (threadPos2D.x == (numColsSource - 1))) &&
+			(threadIdx.y == 0))
+		{
+			if ((threadPos2D.x < numColsSource) &&
+				(threadPos2D.y > 0))
+			{
+				_shared[threadIdx.x + 2][threadIdx.y] =
+					make_uchar4(
+						(myIdTop + 1),
+						(myIdTop + 1) >> 8,
+						(myIdTop + 1) >> 16,
+						(myIdTop + 1) >> 24);
+					// d_sourceImg[myIdTop + 1];
+			}
+			else
+			{
+				_shared[threadIdx.x + 2][threadIdx.y] =
+					make_uchar4(
+						1,
+						2,
+						3,
+						4);
+			}
+		}
+
+		__syncthreads();
+
+		// Left column fetches all left neighbors
+		if ((threadIdx.x == 0) &&
+			(threadPos2D.y < (numRowsSource - 1)))
+		{
+			if (threadPos2D.x > 0)
+			{
+				_shared[threadIdx.x][threadIdx.y + 1] =
+					make_uchar4(
+						(myIdLeft),
+						(myIdLeft) >> 8,
+						(myIdLeft) >> 16,
+						(myIdLeft) >> 24);
+				// d_sourceImg[myIdLeft];
+			}
+			else
+			{
+				_shared[threadIdx.x][threadIdx.y + 1] =
+					make_uchar4(
+						1,
+						2,
+						3,
+						4);
+			}
+		}
+
+		_shared[threadIdx.x + 1][threadIdx.y + 1] =
 			d_sourceImg[myId];
 
+		__syncthreads();
+
+		// Right column fetches all right neighbors
+		if (((threadIdx.x == (blockDim.x - 1)) ||
+			 (threadPos2D.x == (numColsSource - 1))) &&
+			(threadPos2D.y < (numRowsSource - 1)))
+		{
+			if (threadPos2D.x < numColsSource)
+			{
+				_shared[threadIdx.x + 2][threadIdx.y + 1] =
+					make_uchar4(
+						(myIdRight),
+						(myIdRight) >> 8,
+						(myIdRight) >> 16,
+						(myIdRight) >> 24);
+				// d_sourceImg[myIdRight];
+			}
+			else
+			{
+				_shared[threadIdx.x][threadIdx.y + 1] =
+					make_uchar4(
+						1,
+						2,
+						3,
+						4);
+			}
+		}
+
 		d_mask[myId] =
-			((_shared[threadIdx.x][threadIdx.y].x +
-			  _shared[threadIdx.x][threadIdx.y].y +
-			  _shared[threadIdx.x][threadIdx.y].z) < 3 * 255) ?
+			((_shared[threadIdx.x + 1][threadIdx.y + 1].x +
+			  _shared[threadIdx.x + 1][threadIdx.y + 1].y +
+			  _shared[threadIdx.x + 1][threadIdx.y + 1].z) < 3 * 255) ?
 			   1 :
 			   0;
+
+		__syncthreads();
+
+		// Bottom left thread fetches bottom left neighbor (if available)
+		if ((threadIdx.x == 0) &&
+			((threadIdx.y == (blockDim.y - 1)) ||
+			(threadPos2D.y == (numRowsSource - 1))))
+		{
+			if ((threadPos2D.x > 0) &&
+				(threadPos2D.y < numRowsSource))
+			{
+				_shared[threadIdx.x][threadIdx.y + 2] =
+					make_uchar4(
+						(myIdBottom - 1),
+						(myIdBottom - 1) >> 8,
+						(myIdBottom - 1) >> 16,
+						(myIdBottom - 1) >> 24);
+					// d_sourceImg[myIdBottom - 1];
+			}
+			else
+			{
+				_shared[threadIdx.x][threadIdx.y + 2] =
+					make_uchar4(
+						1,
+						2,
+						3,
+						4);
+			}
+		}
+
+		__syncthreads();
+
+		// Bottom row fetches all top neighbors
+		if ((threadIdx.y == (blockDim.y - 1)) ||
+			(threadPos2D.y == (numRowsSource - 1)))
+		{
+			if (threadPos2D.y < numRowsSource)
+			{
+				_shared[threadIdx.x + 1][threadIdx.y + 2] =
+					make_uchar4(
+						(myIdBottom),
+						(myIdBottom) >> 8,
+						(myIdBottom) >> 16,
+						(myIdBottom) >> 24);
+					// d_sourceImg[myIdBottom];
+			}
+			else
+			{
+				_shared[threadIdx.x + 1][threadIdx.y + 2] =
+					make_uchar4(
+						1,
+						2,
+						3,
+						4);
+			}
+		}
+
+		__syncthreads();
+
+		// Bottom right thread fetches bottom right neighbor (if available)
+		if (((threadIdx.x == (blockDim.x - 1)) ||
+			 (threadPos2D.x == (numColsSource - 1))) &&
+			((threadIdx.y == (blockDim.y - 1)) ||
+			 (threadPos2D.y == (numRowsSource - 1))))
+		{
+			if ((threadPos2D.x < numColsSource) &&
+				(threadPos2D.y < numRowsSource))
+			{
+				_shared[threadIdx.x + 2][threadIdx.y + 2] =
+					make_uchar4(
+						(myIdBottom + 1),
+						(myIdBottom + 1) >> 8,
+						(myIdBottom + 1) >> 16,
+						(myIdBottom + 1) >> 24);
+					// d_sourceImg[myIdBottom + 1];
+			}
+			else
+			{
+				_shared[threadIdx.x + 2][threadIdx.y + 2] =
+					make_uchar4(
+						1,
+						2,
+						3,
+						4);
+			}
+		}
+
+		__syncthreads();
+
+#if defined (ENABLE_DEBUG)
+
+		if ((blockIdx.x == 1) &&
+			(blockIdx.y == 1))
+		{
+			int _sharedId =
+				((threadIdx.y + 1) * (BLOCK_SIZE_CALC_MASK_MAX_X + 2)) +
+				 (threadIdx.x + 1);
+
+			d_shared_for_debug[_sharedId] =
+				_shared[threadIdx.x + 1][threadIdx.y + 1];
+
+			// Top left
+			if ((threadIdx.x == 0) &&
+				(threadIdx.y == 0))
+			{
+				_sharedId =
+					0;
+
+				d_shared_for_debug[_sharedId] =
+					_shared[threadIdx.x][threadIdx.y];
+			}
+
+			// Top row
+			if (threadIdx.y == 0)
+			{
+				_sharedId =
+					threadIdx.x + 1;
+
+				d_shared_for_debug[_sharedId] =
+					_shared[threadIdx.x + 1][threadIdx.y];
+			}
+
+			// Top right
+			if (((threadIdx.x == (blockDim.x - 1)) ||
+				 (threadPos2D.x == (numColsSource - 1))) &&
+				(threadIdx.y == 0))
+			{
+				_sharedId =
+					threadIdx.x + 2;
+
+				d_shared_for_debug[_sharedId] =
+					_shared[threadIdx.x + 2][threadIdx.y];
+			}
+
+			// Left column
+			if ((threadIdx.x == 0) &&
+				(threadPos2D.y < (numRowsSource - 1)))
+			{
+				_sharedId =
+					(threadIdx.y + 1) * (BLOCK_SIZE_CALC_MASK_MAX_X + 2);
+
+				d_shared_for_debug[_sharedId] =
+					_shared[threadIdx.x][threadIdx.y + 1];
+			}
+
+			// Right column
+			if (((threadIdx.x == (blockDim.x - 1)) ||
+				 (threadPos2D.x == (numColsSource - 1))) &&
+				(threadPos2D.y < (numRowsSource - 1)))
+			{
+				_sharedId =
+					(threadIdx.y + 1) * (BLOCK_SIZE_CALC_MASK_MAX_X + 2) + threadIdx.x + 2;
+
+				d_shared_for_debug[_sharedId] =
+					_shared[threadIdx.x + 2][threadIdx.y + 1];
+			}
+
+			// Bottom left
+			if ((threadIdx.x == 0) &&
+				((threadIdx.y == (blockDim.y - 1)) ||
+				(threadPos2D.y == (numRowsSource - 1))))
+			{
+				_sharedId =
+					(threadIdx.y + 2) * (BLOCK_SIZE_CALC_MASK_MAX_X + 2);
+
+				d_shared_for_debug[_sharedId] =
+					_shared[threadIdx.x][threadIdx.y + 2];
+			}
+
+
+			// Bottom row
+			if ((threadIdx.y == (blockDim.y - 1)) ||
+				(threadPos2D.y == (numRowsSource - 1)))
+			{
+				_sharedId =
+					(threadIdx.y + 2) * (BLOCK_SIZE_CALC_MASK_MAX_X + 2) + threadIdx.x + 1;
+
+				d_shared_for_debug[_sharedId] =
+					_shared[threadIdx.x + 1][threadIdx.y + 2];
+			}
+
+			// Bottom right
+			if (((threadIdx.x == (blockDim.x - 1)) ||
+				 (threadPos2D.x == (numColsSource - 1))) &&
+				((threadIdx.y == (blockDim.y - 1)) ||
+				 (threadPos2D.y == (numRowsSource - 1))))
+			{
+				_sharedId =
+					(threadIdx.y + 2) * (BLOCK_SIZE_CALC_MASK_MAX_X + 2) + threadIdx.x + 2;
+
+				d_shared_for_debug[_sharedId] =
+					_shared[threadIdx.x + 2][threadIdx.y + 2];
+			}
+		}
+
+#endif
 
 #else
 
@@ -152,7 +511,26 @@ void your_blend(const uchar4* const h_sourceImg,  //IN
 
 	unsigned char* h_mask_dbg = new unsigned char[srcSize];
 
-	memset(h_mask_dbg, 0x0, srcSize * sizeof(unsigned char));
+	memset(
+		h_mask_dbg,
+		0x0,
+		srcSize * sizeof(unsigned char));
+
+	uchar4 *h_shared_for_debug = 
+		new uchar4[(BLOCK_SIZE_CALC_MASK_MAX_X + 2) * (BLOCK_SIZE_CALC_MASK_MAX_Y + 2)];
+
+	memset(
+		h_shared_for_debug,
+		0x0,
+		(BLOCK_SIZE_CALC_MASK_MAX_X + 2) * (BLOCK_SIZE_CALC_MASK_MAX_Y + 2) * sizeof(uchar4));
+
+	uchar4 *d_shared_for_debug;
+
+	// Allocate memory on the device for storing the mask data
+	checkCudaErrors(
+		cudaMalloc(
+			&d_shared_for_debug,
+			(BLOCK_SIZE_CALC_MASK_MAX_X + 2) * (BLOCK_SIZE_CALC_MASK_MAX_Y + 2) * sizeof(uchar4)));
 
 #endif
 
@@ -201,7 +579,15 @@ void your_blend(const uchar4* const h_sourceImg,  //IN
 		d_sourceImg,
 		numRowsSource,
 		numColsSource,
-		d_mask);
+		d_mask
+
+#if defined(ENABLE_DEBUG)
+
+		, d_shared_for_debug
+
+#endif
+
+		);
 
 #if defined (ENABLE_STRICT_ERROR_CHECKING)
 
@@ -217,6 +603,14 @@ void your_blend(const uchar4* const h_sourceImg,  //IN
 			h_mask_dbg,
 			d_mask,
 			srcSize * sizeof(unsigned char),
+			cudaMemcpyDeviceToHost));
+
+	// Copy shared data to host (debug)
+	checkCudaErrors(
+		cudaMemcpy(
+			h_shared_for_debug,
+			d_shared_for_debug,
+			(BLOCK_SIZE_CALC_MASK_MAX_X + 2) * (BLOCK_SIZE_CALC_MASK_MAX_Y + 2) * sizeof(uchar4),
 			cudaMemcpyDeviceToHost));
 
 #endif
@@ -267,6 +661,11 @@ void your_blend(const uchar4* const h_sourceImg,  //IN
                    h_destImg, h_blendedImg, h_mask_dbg);
 
 	delete []h_mask_dbg;
+
+	cudaFree(
+		d_shared_for_debug);
+
+	delete []h_shared_for_debug;
 
 #endif
 }
