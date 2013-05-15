@@ -89,7 +89,9 @@ void reference_calc_custom(const uchar4* const h_sourceImg,
                     const size_t numRowsSource, const size_t numColsSource,
                     const uchar4* const h_destImg,
                     uchar4* const h_blendedImg,
-					const unsigned char* h_mask){
+					const unsigned char* h_mask,
+					const unsigned char* h_border,
+					const unsigned char* h_interior){
 
   //we need to create a list of border pixels and interior pixels
   //this is a conceptually simple implementation, not a particularly efficient one...
@@ -108,8 +110,12 @@ void reference_calc_custom(const uchar4* const h_sourceImg,
   */
 
   //next compute strictly interior pixels and border pixels
-  unsigned char *borderPixels = new unsigned char[srcSize];
-  unsigned char *strictInteriorPixels = new unsigned char[srcSize];
+  const unsigned char *borderPixels =
+	  h_border;
+	  // new unsigned char[srcSize];
+  const unsigned char *strictInteriorPixels =
+	  h_interior;
+	  // new unsigned char[srcSize];
 
   std::vector<uint2> interiorPixelList;
 
@@ -120,18 +126,18 @@ void reference_calc_custom(const uchar4* const h_sourceImg,
       if (mask[r * numColsSource + c]) {
         if (mask[(r -1) * numColsSource + c] && mask[(r + 1) * numColsSource + c] &&
             mask[r * numColsSource + c - 1] && mask[r * numColsSource + c + 1]) {
-          strictInteriorPixels[r * numColsSource + c] = 1;
-          borderPixels[r * numColsSource + c] = 0;
+          // strictInteriorPixels[r * numColsSource + c] = 1;
+          // borderPixels[r * numColsSource + c] = 0;
           interiorPixelList.push_back(make_uint2(r, c));
         }
         else {
-          strictInteriorPixels[r * numColsSource + c] = 0;
-          borderPixels[r * numColsSource + c] = 1;
+          // strictInteriorPixels[r * numColsSource + c] = 0;
+          // borderPixels[r * numColsSource + c] = 1;
         }
       }
       else {
-          strictInteriorPixels[r * numColsSource + c] = 0;
-          borderPixels[r * numColsSource + c] = 0;
+          // strictInteriorPixels[r * numColsSource + c] = 0;
+          // borderPixels[r * numColsSource + c] = 0;
 
       }
     }
@@ -252,7 +258,7 @@ void reference_calc_custom(const uchar4* const h_sourceImg,
   delete[] blue_dst;
   delete[] green_src;
   delete[] green_dst;
-  delete[] borderPixels;
-  delete[] strictInteriorPixels;
+  // delete[] borderPixels;
+  // delete[] strictInteriorPixels;
 }
 

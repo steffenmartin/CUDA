@@ -88,7 +88,9 @@ __global__
 		const uchar4 * const d_sourceImg,
 		const size_t numRowsSource,
 		const size_t numColsSource,
-		unsigned char* d_mask
+		unsigned char* d_mask,
+		unsigned char* d_border,
+		unsigned char* d_interior
 
 #if defined (ENABLE_DEBUG)
 
@@ -149,22 +151,16 @@ __global__
 				(threadPos2D.y > 0))
 			{
 				_shared[threadIdx.x][threadIdx.y] =
-					/* d_sourceImg[myIdTop - 1]; */
-					make_uchar4(
-						(myIdTop - 1),
-						(myIdTop - 1) >> 8,
-						(myIdTop - 1) >> 16,
-						(myIdTop - 1) >> 24);
+					d_sourceImg[myIdTop - 1];
 			}
 			else
 			{
 				_shared[threadIdx.x][threadIdx.y] =
-					/* 0 */
 					make_uchar4(
-						1,
-						2,
-						3,
-						4);
+						255,
+						255,
+						255,
+						255);
 			}
 		}
 
@@ -176,22 +172,16 @@ __global__
 			if (threadPos2D.y > 0)
 			{
 				_shared[threadIdx.x + 1][threadIdx.y] =
-					/* d_sourceImg[myIdTop]; */
-					make_uchar4(
-						(myIdTop),
-						(myIdTop) >> 8,
-						(myIdTop) >> 16,
-						(myIdTop) >> 24);
+					d_sourceImg[myIdTop];
 			}
 			else
 			{
 				_shared[threadIdx.x + 1][threadIdx.y] =
-					/* 0 */
 					make_uchar4(
-						1,
-						2,
-						3,
-						4);
+						255,
+						255,
+						255,
+						255);
 			}
 		}
 
@@ -206,22 +196,16 @@ __global__
 				(threadPos2D.y > 0))
 			{
 				_shared[threadIdx.x + 2][threadIdx.y] =
-					/* d_sourceImg[myIdTop + 1]; */
-					make_uchar4(
-						(myIdTop + 1),
-						(myIdTop + 1) >> 8,
-						(myIdTop + 1) >> 16,
-						(myIdTop + 1) >> 24);
+					d_sourceImg[myIdTop + 1];
 			}
 			else
 			{
 				_shared[threadIdx.x + 2][threadIdx.y] =
-					/* 0 */
 					make_uchar4(
-						1,
-						2,
-						3,
-						4);
+						255,
+						255,
+						255,
+						255);
 			}
 		}
 
@@ -234,22 +218,16 @@ __global__
 			if (threadPos2D.x > 0)
 			{
 				_shared[threadIdx.x][threadIdx.y + 1] =
-					/* d_sourceImg[myIdLeft]; */
-					make_uchar4(
-						(myIdLeft),
-						(myIdLeft) >> 8,
-						(myIdLeft) >> 16,
-						(myIdLeft) >> 24);
+					d_sourceImg[myIdLeft];
 			}
 			else
 			{
 				_shared[threadIdx.x][threadIdx.y + 1] =
-					/* 0 */
 					make_uchar4(
-						1,
-						2,
-						3,
-						4);
+						255,
+						255,
+						255,
+						255);
 			}
 		}
 
@@ -269,32 +247,18 @@ __global__
 			if (threadPos2D.x < (numColsSource - 1))
 			{
 				_shared[threadIdx.x + 2][threadIdx.y + 1] =
-					/* d_sourceImg[myIdRight]; */
-					make_uchar4(
-						(myIdRight),
-						(myIdRight) >> 8,
-						(myIdRight) >> 16,
-						(myIdRight) >> 24);
+					d_sourceImg[myIdRight];
 			}
 			else
 			{
 				_shared[threadIdx.x + 2][threadIdx.y + 1] =
-					/* 0 */
 					make_uchar4(
-						1,
-						2,
-						3,
-						4);
+						255,
+						255,
+						255,
+						255);
 			}
 		}
-
-		// Determine the outside pixels (set them to 0)
-		d_mask[myId] =
-			((_shared[threadIdx.x + 1][threadIdx.y + 1].x +
-			  _shared[threadIdx.x + 1][threadIdx.y + 1].y +
-			  _shared[threadIdx.x + 1][threadIdx.y + 1].z) < 3 * 255) ?
-			   1 :
-			   0;
 
 		__syncthreads();
 
@@ -307,22 +271,16 @@ __global__
 				(threadPos2D.y < (numRowsSource - 1)))
 			{
 				_shared[threadIdx.x][threadIdx.y + 2] =
-					/* d_sourceImg[myIdBottom - 1]; */
-					make_uchar4(
-						(myIdBottom - 1),
-						(myIdBottom - 1) >> 8,
-						(myIdBottom - 1) >> 16,
-						(myIdBottom - 1) >> 24);
+					d_sourceImg[myIdBottom - 1];
 			}
 			else
 			{
 				_shared[threadIdx.x][threadIdx.y + 2] =
-					/* 0 */
 					make_uchar4(
-						1,
-						2,
-						3,
-						4);
+						255,
+						255,
+						255,
+						255);
 			}
 		}
 
@@ -335,22 +293,16 @@ __global__
 			if (threadPos2D.y < (numRowsSource - 1))
 			{
 				_shared[threadIdx.x + 1][threadIdx.y + 2] =
-					/* d_sourceImg[myIdBottom]; */
-					make_uchar4(
-						(myIdBottom),
-						(myIdBottom) >> 8,
-						(myIdBottom) >> 16,
-						(myIdBottom) >> 24);
+					d_sourceImg[myIdBottom];
 			}
 			else
 			{
 				_shared[threadIdx.x + 1][threadIdx.y + 2] =
-					/* 0 */
 					make_uchar4(
-						1,
-						2,
-						3,
-						4);
+						255,
+						255,
+						255,
+						255);
 			}
 		}
 
@@ -366,26 +318,85 @@ __global__
 				(threadPos2D.y < (numRowsSource - 1)))
 			{
 				_shared[threadIdx.x + 2][threadIdx.y + 2] =
-					/* d_sourceImg[myIdBottom + 1]; */
-					make_uchar4(
-						(myIdBottom + 1),
-						(myIdBottom + 1) >> 8,
-						(myIdBottom + 1) >> 16,
-						(myIdBottom + 1) >> 24);
+					d_sourceImg[myIdBottom + 1];
 			}
 			else
 			{
 				_shared[threadIdx.x + 2][threadIdx.y + 2] =
-					/* 0 */
 					make_uchar4(
-						1,
-						2,
-						3,
-						4);
+						255,
+						255,
+						255,
+						255);
 			}
 		}
 
 		__syncthreads();
+
+		// Determine the outside pixels (set them to 0)
+		unsigned char _maskVal =
+			((_shared[threadIdx.x + 1][threadIdx.y + 1].x +
+			  _shared[threadIdx.x + 1][threadIdx.y + 1].y +
+			  _shared[threadIdx.x + 1][threadIdx.y + 1].z) < 3 * 255) ?
+			   1 :
+			   0;
+		d_mask[myId] = _maskVal;
+
+		__syncthreads();
+
+		if (_maskVal)
+		{
+			uchar4 _topNeighbor =
+				_shared[threadIdx.x + 1][threadIdx.y];
+
+			uchar4 _bottomNeighbor =
+				_shared[threadIdx.x + 1][threadIdx.y + 2];
+
+			uchar4 _leftNeighbor =
+				_shared[threadIdx.x][threadIdx.y + 1];
+
+			uchar4 _rightNeighbor =
+				_shared[threadIdx.x + 2][threadIdx.y + 1];
+
+			bool _topNeighborIn =
+				(_topNeighbor.x +
+				_topNeighbor.y +
+				_topNeighbor.z) < 3 * 255;
+
+			bool _bottomNeighborIn =
+				(_bottomNeighbor.x +
+				_bottomNeighbor.y +
+				_bottomNeighbor.z) < 3 * 255;
+
+			bool _leftNeighborIn =
+				(_leftNeighbor.x +
+				_leftNeighbor.y +
+				_leftNeighbor.z) < 3 * 255;
+
+			bool _rightNeighborIn =
+				(_rightNeighbor.x +
+				_rightNeighbor.y +
+				_rightNeighbor.z) < 3 * 255;
+
+			if (_topNeighborIn &&
+				_bottomNeighborIn &&
+				_leftNeighborIn &&
+				_rightNeighborIn)
+			{
+				d_border[myId] = 0;
+				d_interior[myId] = 1;
+			}
+			else
+			{
+				d_border[myId] = 1;
+				d_interior[myId] = 0;
+			}
+		}
+		else
+		{
+			d_border[myId] = 0;
+			d_interior[myId] = 0;
+		}
 
 #if defined (ENABLE_DEBUG)
 
@@ -529,10 +540,27 @@ void your_blend(const uchar4* const h_sourceImg,  //IN
 
 #if defined (ENABLE_DEBUG)
 
-	unsigned char* h_mask_dbg = new unsigned char[srcSize];
+	unsigned char* h_mask_dbg =
+		new unsigned char[srcSize];
 
 	memset(
 		h_mask_dbg,
+		0x0,
+		srcSize * sizeof(unsigned char));
+
+	unsigned char* h_border_dbg =
+		new unsigned char[srcSize];
+
+	memset(
+		h_border_dbg,
+		0x0,
+		srcSize * sizeof(unsigned char));
+
+	unsigned char* h_interior_dbg =
+		new unsigned char[srcSize];
+
+	memset(
+		h_interior_dbg,
 		0x0,
 		srcSize * sizeof(unsigned char));
 
@@ -546,7 +574,7 @@ void your_blend(const uchar4* const h_sourceImg,  //IN
 
 	uchar4 *d_shared_for_debug;
 
-	// Allocate memory on the device for storing the mask data
+	// Allocate memory on the device for rterieving shared data
 	checkCudaErrors(
 		cudaMalloc(
 			&d_shared_for_debug,
@@ -560,6 +588,22 @@ void your_blend(const uchar4* const h_sourceImg,  //IN
 	checkCudaErrors(
 		cudaMalloc(
 			&d_mask,
+			srcSize * sizeof(unsigned char)));
+
+	unsigned char* d_border;
+
+	// Allocate memory on the device for storing the border data
+	checkCudaErrors(
+		cudaMalloc(
+			&d_border,
+			srcSize * sizeof(unsigned char)));
+
+	unsigned char* d_interior;
+
+	// Allocate memory on the device for storing the interior data
+	checkCudaErrors(
+		cudaMalloc(
+			&d_interior,
 			srcSize * sizeof(unsigned char)));
 
 	uchar4* d_sourceImg;
@@ -599,7 +643,9 @@ void your_blend(const uchar4* const h_sourceImg,  //IN
 		d_sourceImg,
 		numRowsSource,
 		numColsSource,
-		d_mask
+		d_mask,
+		d_border,
+		d_interior
 
 #if defined(ENABLE_DEBUG)
 
@@ -625,6 +671,22 @@ void your_blend(const uchar4* const h_sourceImg,  //IN
 			srcSize * sizeof(unsigned char),
 			cudaMemcpyDeviceToHost));
 
+	// Copy border data to host (debug)
+	checkCudaErrors(
+		cudaMemcpy(
+			h_border_dbg,
+			d_border,
+			srcSize * sizeof(unsigned char),
+			cudaMemcpyDeviceToHost));
+
+	// Copy interior data to host (debug)
+	checkCudaErrors(
+		cudaMemcpy(
+			h_interior_dbg,
+			d_interior,
+			srcSize * sizeof(unsigned char),
+			cudaMemcpyDeviceToHost));
+
 	// Copy shared data to host (debug)
 	checkCudaErrors(
 		cudaMemcpy(
@@ -637,6 +699,12 @@ void your_blend(const uchar4* const h_sourceImg,  //IN
 
 	cudaFree(
 		d_mask);
+
+	cudaFree(
+		d_border);
+
+	cudaFree(
+		d_interior);
 
 	cudaFree(
 		d_sourceImg);
@@ -678,9 +746,13 @@ void your_blend(const uchar4* const h_sourceImg,  //IN
 #if defined (ENABLE_DEBUG)
 
 	reference_calc_custom(h_sourceImg, numRowsSource, numColsSource,
-                   h_destImg, h_blendedImg, h_mask_dbg);
+                   h_destImg, h_blendedImg, h_mask_dbg, h_border_dbg, h_interior_dbg);
 
 	delete []h_mask_dbg;
+
+	delete []h_border_dbg;
+
+	delete []h_interior_dbg;
 
 	cudaFree(
 		d_shared_for_debug);
