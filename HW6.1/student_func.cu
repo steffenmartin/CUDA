@@ -73,6 +73,14 @@
 #define BLOCK_SIZE_CALC_MASK_MAX_Y 22
 
 #define ENABLE_DEBUG
+
+#if defined(ENABLE_DEBUG)
+
+#define DEBUG_COLLECT_SHARED_DATA_BLOCK_X 0
+#define DEBUG_COLLECT_SHARED_DATA_BLOCK_Y 0
+
+#endif
+
 // #define ENABLE_STRICT_ERROR_CHECKING
 
 __global__
@@ -141,16 +149,17 @@ __global__
 				(threadPos2D.y > 0))
 			{
 				_shared[threadIdx.x][threadIdx.y] =
+					/* d_sourceImg[myIdTop - 1]; */
 					make_uchar4(
 						(myIdTop - 1),
 						(myIdTop - 1) >> 8,
 						(myIdTop - 1) >> 16,
 						(myIdTop - 1) >> 24);
-					// d_sourceImg[myIdTop - 1];
 			}
 			else
 			{
 				_shared[threadIdx.x][threadIdx.y] =
+					/* 0 */
 					make_uchar4(
 						1,
 						2,
@@ -167,16 +176,17 @@ __global__
 			if (threadPos2D.y > 0)
 			{
 				_shared[threadIdx.x + 1][threadIdx.y] =
+					/* d_sourceImg[myIdTop]; */
 					make_uchar4(
 						(myIdTop),
 						(myIdTop) >> 8,
 						(myIdTop) >> 16,
 						(myIdTop) >> 24);
-					// d_sourceImg[myIdTop];
 			}
 			else
 			{
 				_shared[threadIdx.x + 1][threadIdx.y] =
+					/* 0 */
 					make_uchar4(
 						1,
 						2,
@@ -192,20 +202,21 @@ __global__
 			 (threadPos2D.x == (numColsSource - 1))) &&
 			(threadIdx.y == 0))
 		{
-			if ((threadPos2D.x < numColsSource) &&
+			if ((threadPos2D.x < (numColsSource - 1)) &&
 				(threadPos2D.y > 0))
 			{
 				_shared[threadIdx.x + 2][threadIdx.y] =
+					/* d_sourceImg[myIdTop + 1]; */
 					make_uchar4(
 						(myIdTop + 1),
 						(myIdTop + 1) >> 8,
 						(myIdTop + 1) >> 16,
 						(myIdTop + 1) >> 24);
-					// d_sourceImg[myIdTop + 1];
 			}
 			else
 			{
 				_shared[threadIdx.x + 2][threadIdx.y] =
+					/* 0 */
 					make_uchar4(
 						1,
 						2,
@@ -218,21 +229,22 @@ __global__
 
 		// Left column fetches all left neighbors
 		if ((threadIdx.x == 0) &&
-			(threadPos2D.y < (numRowsSource - 1)))
+			(threadPos2D.y < numRowsSource))
 		{
 			if (threadPos2D.x > 0)
 			{
 				_shared[threadIdx.x][threadIdx.y + 1] =
+					/* d_sourceImg[myIdLeft]; */
 					make_uchar4(
 						(myIdLeft),
 						(myIdLeft) >> 8,
 						(myIdLeft) >> 16,
 						(myIdLeft) >> 24);
-				// d_sourceImg[myIdLeft];
 			}
 			else
 			{
 				_shared[threadIdx.x][threadIdx.y + 1] =
+					/* 0 */
 					make_uchar4(
 						1,
 						2,
@@ -241,6 +253,9 @@ __global__
 			}
 		}
 
+		__syncthreads();
+
+		// Fetch all standard elements of the tile
 		_shared[threadIdx.x + 1][threadIdx.y + 1] =
 			d_sourceImg[myId];
 
@@ -249,21 +264,22 @@ __global__
 		// Right column fetches all right neighbors
 		if (((threadIdx.x == (blockDim.x - 1)) ||
 			 (threadPos2D.x == (numColsSource - 1))) &&
-			(threadPos2D.y < (numRowsSource - 1)))
+			(threadPos2D.y < numRowsSource))
 		{
-			if (threadPos2D.x < numColsSource)
+			if (threadPos2D.x < (numColsSource - 1))
 			{
 				_shared[threadIdx.x + 2][threadIdx.y + 1] =
+					/* d_sourceImg[myIdRight]; */
 					make_uchar4(
 						(myIdRight),
 						(myIdRight) >> 8,
 						(myIdRight) >> 16,
 						(myIdRight) >> 24);
-				// d_sourceImg[myIdRight];
 			}
 			else
 			{
-				_shared[threadIdx.x][threadIdx.y + 1] =
+				_shared[threadIdx.x + 2][threadIdx.y + 1] =
+					/* 0 */
 					make_uchar4(
 						1,
 						2,
@@ -272,6 +288,7 @@ __global__
 			}
 		}
 
+		// Determine the outside pixels (set them to 0)
 		d_mask[myId] =
 			((_shared[threadIdx.x + 1][threadIdx.y + 1].x +
 			  _shared[threadIdx.x + 1][threadIdx.y + 1].y +
@@ -287,19 +304,20 @@ __global__
 			(threadPos2D.y == (numRowsSource - 1))))
 		{
 			if ((threadPos2D.x > 0) &&
-				(threadPos2D.y < numRowsSource))
+				(threadPos2D.y < (numRowsSource - 1)))
 			{
 				_shared[threadIdx.x][threadIdx.y + 2] =
+					/* d_sourceImg[myIdBottom - 1]; */
 					make_uchar4(
 						(myIdBottom - 1),
 						(myIdBottom - 1) >> 8,
 						(myIdBottom - 1) >> 16,
 						(myIdBottom - 1) >> 24);
-					// d_sourceImg[myIdBottom - 1];
 			}
 			else
 			{
 				_shared[threadIdx.x][threadIdx.y + 2] =
+					/* 0 */
 					make_uchar4(
 						1,
 						2,
@@ -310,23 +328,24 @@ __global__
 
 		__syncthreads();
 
-		// Bottom row fetches all top neighbors
+		// Bottom row fetches all bottom neighbors
 		if ((threadIdx.y == (blockDim.y - 1)) ||
 			(threadPos2D.y == (numRowsSource - 1)))
 		{
-			if (threadPos2D.y < numRowsSource)
+			if (threadPos2D.y < (numRowsSource - 1))
 			{
 				_shared[threadIdx.x + 1][threadIdx.y + 2] =
+					/* d_sourceImg[myIdBottom]; */
 					make_uchar4(
 						(myIdBottom),
 						(myIdBottom) >> 8,
 						(myIdBottom) >> 16,
 						(myIdBottom) >> 24);
-					// d_sourceImg[myIdBottom];
 			}
 			else
 			{
 				_shared[threadIdx.x + 1][threadIdx.y + 2] =
+					/* 0 */
 					make_uchar4(
 						1,
 						2,
@@ -343,20 +362,21 @@ __global__
 			((threadIdx.y == (blockDim.y - 1)) ||
 			 (threadPos2D.y == (numRowsSource - 1))))
 		{
-			if ((threadPos2D.x < numColsSource) &&
-				(threadPos2D.y < numRowsSource))
+			if ((threadPos2D.x < (numColsSource - 1)) &&
+				(threadPos2D.y < (numRowsSource - 1)))
 			{
 				_shared[threadIdx.x + 2][threadIdx.y + 2] =
+					/* d_sourceImg[myIdBottom + 1]; */
 					make_uchar4(
 						(myIdBottom + 1),
 						(myIdBottom + 1) >> 8,
 						(myIdBottom + 1) >> 16,
 						(myIdBottom + 1) >> 24);
-					// d_sourceImg[myIdBottom + 1];
 			}
 			else
 			{
 				_shared[threadIdx.x + 2][threadIdx.y + 2] =
+					/* 0 */
 					make_uchar4(
 						1,
 						2,
@@ -369,8 +389,8 @@ __global__
 
 #if defined (ENABLE_DEBUG)
 
-		if ((blockIdx.x == 1) &&
-			(blockIdx.y == 1))
+		if ((blockIdx.x == DEBUG_COLLECT_SHARED_DATA_BLOCK_X) &&
+			(blockIdx.y == DEBUG_COLLECT_SHARED_DATA_BLOCK_Y))
 		{
 			int _sharedId =
 				((threadIdx.y + 1) * (BLOCK_SIZE_CALC_MASK_MAX_X + 2)) +
@@ -414,7 +434,7 @@ __global__
 
 			// Left column
 			if ((threadIdx.x == 0) &&
-				(threadPos2D.y < (numRowsSource - 1)))
+				(threadPos2D.y < numRowsSource))
 			{
 				_sharedId =
 					(threadIdx.y + 1) * (BLOCK_SIZE_CALC_MASK_MAX_X + 2);
@@ -426,7 +446,7 @@ __global__
 			// Right column
 			if (((threadIdx.x == (blockDim.x - 1)) ||
 				 (threadPos2D.x == (numColsSource - 1))) &&
-				(threadPos2D.y < (numRowsSource - 1)))
+				(threadPos2D.y < numRowsSource ))
 			{
 				_sharedId =
 					(threadIdx.y + 1) * (BLOCK_SIZE_CALC_MASK_MAX_X + 2) + threadIdx.x + 2;
